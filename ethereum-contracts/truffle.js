@@ -11,7 +11,7 @@ module.exports = {
       host: "localhost",
       port: 8545,
       network_id: "*", // Match any network id
-      gas: 4700000,
+      gas: 6000000, //Increased to 6,000,000 for Peggy deployment
       solc: { optimizer: { enabled: true, runs: 200 } }
     },
     ganache: {
@@ -23,7 +23,7 @@ module.exports = {
       network_id: 3,
       host: "localhost",
       port: 8545,
-      gas: 4700000,
+      gas: 6000000,
       solc: { optimizer: { enabled: true, runs: 200 } }
    }
   },

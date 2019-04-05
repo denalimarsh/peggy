@@ -111,8 +111,9 @@ contract('Peggy', function(accounts) {
       let hashData = String(await peggy.hashNewCosmosERC20.call('ATOMS', 18));
       let signatures = await utils.createSigns(validators, hashData);
       let cosmosTokenAddress = await peggy.newCosmosERC20.call('ATOMS', 18, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);
-      await peggy.newCosmosERC20('ATOMS', 18, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);
-      let cosmosToken = CosmosERC20.at(cosmosTokenAddress);
+      await peggy.newCosmosERC20('ATOMS', 18, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);      
+      let cosmosToken = await CosmosERC20.at(cosmosTokenAddress);
+      
       hashData = await peggy.hashUnlock(_account_one, cosmosTokenAddress, 1000);
       signatures = await utils.createSigns(validators, hashData);
       await peggy.unlock(_account_one, cosmosTokenAddress, 1000, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);
@@ -133,7 +134,7 @@ contract('Peggy', function(accounts) {
 
       let ethBalance = await web3.eth.getBalance(peggy.address);
 
-      assert.equal(ethBalance.toNumber(), 1000);
+      assert.equal(Number(ethBalance), 1000);
       assert.strictEqual(res.logs.length, 1);
       assert.strictEqual(res.logs[0].event, "Lock");
       assert.strictEqual(String(res.logs[0].args.to), '0xdeadbeef');
@@ -170,8 +171,8 @@ contract('Peggy', function(accounts) {
       let hashData = String(await peggy.hashNewCosmosERC20.call('ATOMS', 18));
       let signatures = await utils.createSigns(validators, hashData);
       let cosmosTokenAddress = await peggy.newCosmosERC20.call('ATOMS', 18, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);
-      await peggy.newCosmosERC20('ATOMS', 18, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);
-      let cosmosToken = CosmosERC20.at(cosmosTokenAddress);
+      await peggy.newCosmosERC20('ATOMS', 18, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);      
+      let cosmosToken = await CosmosERC20.at(cosmosTokenAddress);
 
       hashData = await peggy.hashUnlock(_account_one, cosmosTokenAddress, 1000);
       signatures = await utils.createSigns(validators, hashData);
@@ -195,7 +196,8 @@ contract('Peggy', function(accounts) {
       let hashData = await peggy.hashUnlock(_account_one, _address0, 1000);
       let signatures = await utils.createSigns(validators, hashData);
       res = await peggy.unlock(args._account_one, args._address0, 1000, signatures.signers, signatures.vArray, signatures.rArray, signatures.sArray);
-      assert.equal(await web3.eth.getBalance(_account_one).toNumber(), oldBalance.toNumber() + 1000);
+
+      assert.equal(Number(await web3.eth.getBalance(_account_one)), Number(oldBalance) + 1000);
 
       assert.strictEqual(res.logs.length, 1);
       assert.strictEqual(res.logs[0].event, "Unlock");

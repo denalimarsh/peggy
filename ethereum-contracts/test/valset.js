@@ -29,7 +29,8 @@ contract('Valset', function(accounts) {
       assert.isAtMost(contractAddresses.length, 100, "Validator set should not be larger than 100");
 
       for (var i = 0; i < validators.addresses.length; i++) {
-        assert.strictEqual(String(contractAddresses[i]), validators.addresses[i], "Initial validators' addresses array should be equal as the saved one")
+        //'Actual' address converted to lowercase for comparison with 'expected' util generated addresses
+        assert.strictEqual(String(contractAddresses[i]).toLowerCase(), validators.addresses[i], "Initial validators' addresses array should be equal as the saved one")
         assert.strictEqual(contractPowers[i].toNumber(), validators.powers[i], "Initial validators' powers array should be equal as the saved one");
       }
 
@@ -96,7 +97,8 @@ contract('Valset', function(accounts) {
       assert.strictEqual(contractPowers.length, newValidators.powers.length, "contract powers array length should be same as passed in powers array");
 
       for (var i = 0; i < newValidators.addresses.length; i++) {
-        assert.strictEqual(String(contractAddresses[i]), newValidators.addresses[i], "New validators' addresses array should be equal as the saved one")
+        //'Actual' address converted to lowercase for comparison with 'expected' util generated addresses
+        assert.strictEqual(String(contractAddresses[i]).toLowerCase(), newValidators.addresses[i], "New validators' addresses array should be equal as the saved one")
         assert.strictEqual(contractPowers[i].toNumber(), newValidators.powers[i], "New validators' powers array should be equal as the saved one");
       }
 
@@ -111,7 +113,8 @@ contract('Valset', function(accounts) {
       assert.strictEqual(res.logs[0].args.newPowers.length, newValidators.powers.length, "Event powers array length should be same as passed in power array");
 
       for (var i = 0; i < newValidators.addresses.length; i++) {
-        assert.strictEqual(String(res.logs[0].args.newAddresses[i]), newValidators.addresses[i], "newAddresses' address[] parameter from Update event should be equal to the generated validators addreses");
+        //'Actual' address converted to lowercase for comparison with 'expected' util generated addresses
+        assert.strictEqual(String(res.logs[0].args.newAddresses[i]).toLowerCase(), newValidators.addresses[i], "newAddresses' address[] parameter from Update event should be equal to the generated validators addreses");
         assert.strictEqual(res.logs[0].args.newPowers[i].toNumber(), newValidators.powers[i], "'newPowers' uint64[] parameter from Update event should be equal to the generated validators addreses");
       }
 

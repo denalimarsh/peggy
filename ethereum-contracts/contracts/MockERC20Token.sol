@@ -1,4 +1,4 @@
-pragma solidity ^0.4.17;
+pragma solidity ^0.5.0;
 
 import "./ERC20.sol";
 import "./SafeMath.sol";
@@ -16,8 +16,12 @@ contract MockERC20Token is ERC20 {
   /**
   * @dev total number of tokens in existence
   */
-  function totalSupply() public view returns (uint256) {
-    return totalSupply_;
+  function totalSupply()
+      public
+      view
+      returns (uint256)
+  {
+      return totalSupply_;
   }
 
   /**
@@ -25,15 +29,21 @@ contract MockERC20Token is ERC20 {
   * @param _to The address to transfer to.
   * @param _value The amount to be transferred.
   */
-  function transfer(address _to, uint256 _value) public returns (bool) {
-    require(_to != address(0));
-    require(_value <= balances[msg.sender]);
+  function transfer(
+      address _to,
+      uint256 _value
+  )
+      public
+      returns (bool)
+  {
+      require(_to != address(0));
+      require(_value <= balances[msg.sender]);
 
-    // SafeMath.sub will throw if there is not enough balance.
-    balances[msg.sender] = balances[msg.sender].sub(_value);
-    balances[_to] = balances[_to].add(_value);
-    Transfer(msg.sender, _to, _value);
-    return true;
+      // SafeMath.sub will throw if there is not enough balance.
+      balances[msg.sender] = balances[msg.sender].sub(_value);
+      balances[_to] = balances[_to].add(_value);
+      emit Transfer(msg.sender, _to, _value);
+      return true;
   }
 
   /**
@@ -41,8 +51,14 @@ contract MockERC20Token is ERC20 {
   * @param _owner The address to query the the balance of.
   * @return An uint256 representing the amount owned by the passed address.
   */
-  function balanceOf(address _owner) public view returns (uint256 balance) {
-    return balances[_owner];
+  function balanceOf(
+      address _owner
+  )
+      public
+      view
+      returns (uint256 balance)
+  {
+      return balances[_owner];
 	}
 
   /**
@@ -51,16 +67,23 @@ contract MockERC20Token is ERC20 {
    * @param _to address The address which you want to transfer to
    * @param _value uint256 the amount of tokens to be transferred
    */
-  function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
-    require(_to != address(0));
-    require(_value <= balances[_from]);
-    require(_value <= allowed[_from][msg.sender]);
+  function transferFrom(
+      address _from,
+      address _to,
+      uint256 _value
+  )
+      public
+      returns (bool)
+  {
+      require(_to != address(0));
+      require(_value <= balances[_from]);
+      require(_value <= allowed[_from][msg.sender]);
 
-    balances[_from] = balances[_from].sub(_value);
-    balances[_to] = balances[_to].add(_value);
-    allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
-    Transfer(_from, _to, _value);
-    return true;
+      balances[_from] = balances[_from].sub(_value);
+      balances[_to] = balances[_to].add(_value);
+      allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
+      emit Transfer(_from, _to, _value);
+      return true;
   }
 
   /**
@@ -73,10 +96,16 @@ contract MockERC20Token is ERC20 {
    * @param _spender The address which will spend the funds.
    * @param _value The amount of tokens to be spent.
    */
-  function approve(address _spender, uint256 _value) public returns (bool) {
-    allowed[msg.sender][_spender] = _value;
-    Approval(msg.sender, _spender, _value);
-    return true;
+  function approve(
+      address _spender,
+      uint256 _value
+  )
+      public
+      returns (bool)
+  {
+      allowed[msg.sender][_spender] = _value;
+      emit Approval(msg.sender, _spender, _value);
+      return true;
   }
 
   /**
@@ -85,8 +114,15 @@ contract MockERC20Token is ERC20 {
    * @param _spender address The address which will spend the funds.
    * @return A uint256 specifying the amount of tokens still available for the spender.
    */
-  function allowance(address _owner, address _spender) public view returns (uint256) {
-    return allowed[_owner][_spender];
+  function allowance(
+      address _owner,
+      address _spender
+  )
+      public
+      view
+      returns (uint256)
+  {
+      return allowed[_owner][_spender];
   }
 
   /**
@@ -99,10 +135,16 @@ contract MockERC20Token is ERC20 {
    * @param _spender The address which will spend the funds.
    * @param _addedValue The amount of tokens to increase the allowance by.
    */
-  function increaseApproval(address _spender, uint _addedValue) public returns (bool) {
-    allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_addedValue);
-    Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
-    return true;
+  function increaseApproval(
+      address _spender,
+      uint _addedValue
+  )
+      public
+      returns (bool)
+  {
+      allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_addedValue);
+      emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+      return true;
   }
 
   /**
@@ -115,19 +157,30 @@ contract MockERC20Token is ERC20 {
    * @param _spender The address which will spend the funds.
    * @param _subtractedValue The amount of tokens to decrease the allowance by.
    */
-  function decreaseApproval(address _spender, uint _subtractedValue) public returns (bool) {
-    uint oldValue = allowed[msg.sender][_spender];
-    if (_subtractedValue > oldValue) {
-      allowed[msg.sender][_spender] = 0;
-    } else {
-      allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
-    }
-    Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
-    return true;
+  function decreaseApproval(
+      address _spender,
+      uint _subtractedValue
+  )
+      public
+      returns (bool)
+  {
+      uint oldValue = allowed[msg.sender][_spender];
+      if (_subtractedValue > oldValue) {
+          allowed[msg.sender][_spender] = 0;
+      } else {
+          allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
+      }
+      emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+      return true;
 	}
 
-  function MockERC20Token(address initialAccount, uint256 initialBalance) public {
-    balances[initialAccount] = initialBalance;
-    totalSupply_ = initialBalance;
+  constructor(
+      address initialAccount,
+      uint256 initialBalance
+  )
+      public
+  {
+      balances[initialAccount] = initialBalance;
+      totalSupply_ = initialBalance;
   }
 }
