@@ -28,8 +28,8 @@ The Peggy Smart Contract is deployed on the Ropsten testnet at address: 0x3de4ef
 ![peggyarchitecturediagram](https://user-images.githubusercontent.com/15370712/58388886-632c7700-7fd9-11e9-962e-4e5e9d92c275.png)
 
 ### System Process:
-1. Users lock Ethereum or ERC20 tokens on the Peggy contract, resulting in the emission of an event containing the created item's original sender's Ethereum address, the intended recipient's Cosmos address, the type of token, the amount locked, and the item's unique nonce.
-2. Validators  on the Cosmos chain witness these lock events via a Relayer service and sign a hash containing the unique item's information, which is sent as a Cosmos transaction to Oracle module.
+1. Users lock Ethereum or ERC20 tokens on the Peggy contract, resulting in the emission of an event containing the created deposit's original sender's Ethereum address, the intended recipient's Cosmos address, the type of token, the amount locked, and the deposit's unique nonce.
+2. Validators  on the Cosmos chain witness these lock events via a Relayer service and sign a hash containing the unique deposit's information, which is sent as a Cosmos transaction to Oracle module.
 3. Once the Oracle module has verified that the validators' aggregated signing power is greater than the specified threshold, it mints the appropriate amount of tokens and forwards them to the intended recipient.
 
 The Relayer service and Oracle module are under development here: https://github.com/swishlabsco/cosmos-ethereum-bridge.

@@ -130,20 +130,20 @@ contract('Peggy', function (accounts) {
       await this.token.mint(userOne, 100, { from: relayer }).should.be.fulfilled;
 
       await this.token.approve(this.peggy.address, 100, { from: userOne }).should.be.fulfilled;
-      this.itemId = await this.peggy.lock.call(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
+      this.depositId = await this.peggy.lock.call(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
       await this.peggy.lock(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
     });
 
-    it('should allow for public viewing of a locked item\'s information', async function () {
-      //Get the item struct's information
-      const itemInfo = await this.peggy.viewItem(this.itemId, { from: relayer }).should.be.fulfilled;
+    it('should allow for public viewing of a locked deposit\'s information', async function () {
+      //Get the deposit struct's information
+      const depositInfo = await this.peggy.viewDeposit(this.depositId, { from: relayer }).should.be.fulfilled;
 
       //Parse each attribute
-      const sender = itemInfo[0];
-      const receiver = itemInfo[1];
-      const token = itemInfo[2];
-      const amount = Number(itemInfo[3]);
-      const nonce = Number(itemInfo[4]);
+      const sender = depositInfo[0];
+      const receiver = depositInfo[1];
+      const token = depositInfo[2];
+      const amount = Number(depositInfo[3]);
+      const nonce = Number(depositInfo[4]);
 
       //Confirm that each attribute is correct
       sender.should.be.equal(userOne);
@@ -154,17 +154,17 @@ contract('Peggy', function (accounts) {
     });
 
     it('should correctly encode and decode the intended recipient\'s address', async function () {
-      //Get the item struct's information
-      const itemInfo = await this.peggy.viewItem(this.itemId, { from: relayer }).should.be.fulfilled;
+      //Get the deposit struct's information
+      const depositInfo = await this.peggy.viewDeposit(this.depositId, { from: relayer }).should.be.fulfilled;
 
       //Decode the stored recipient's address and compare it the original
-      const receiver = web3.utils.hexToUtf8(itemInfo[1]);
+      const receiver = web3.utils.hexToUtf8(depositInfo[1]);
       receiver.should.be.equal(cosmosAddr);
     });
 
   });
 
-  describe('Unlocking of itemized ethereum', function(){
+  describe('Unlocking of deposited ethereum', function(){
 
     beforeEach(async function() {
       this.peggy = await Peggy.new();
@@ -178,19 +178,19 @@ contract('Peggy', function (accounts) {
       await this.token.mint(userOne, 100, { from: relayer }).should.be.fulfilled;
 
       await this.token.approve(this.peggy.address, 100, { from: userOne }).should.be.fulfilled;
-      this.itemId = await this.peggy.lock.call(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
+      this.depositId = await this.peggy.lock.call(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
       await this.peggy.lock(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
 
   });
 
-    it('should allow the relayer to unlock itemized ethereum', async function () {
+    it('should allow the relayer to unlock deposited ethereum', async function () {
       const id = await this.peggy.lock.call(this.recipient, this.ethereumToken, this.weiAmount, { from: userOne, value: this.weiAmount, gas: this.gasForLock }).should.be.fulfilled;
       await this.peggy.lock(this.recipient, this.ethereumToken, this.weiAmount, { from: userOne, value: this.weiAmount, gas: this.gasForLock }).should.be.fulfilled;
       await this.peggy.unlock(id, { from: relayer, gas: this.gasForLock }).should.be.fulfilled;
     });
 
-    it('should allow the relayer to unlock itemized erc20 tokens', async function () {
-      await this.peggy.unlock(this.itemId, { from: relayer, gas: this.gasForLock }).should.be.fulfilled;
+    it('should allow the relayer to unlock deposited erc20 tokens', async function () {
+      await this.peggy.unlock(this.depositId, { from: relayer, gas: this.gasForLock }).should.be.fulfilled;
     });
 
     it('should correctly transfer funds to intended recipient upon unlock', async function () {
@@ -201,7 +201,7 @@ contract('Peggy', function (accounts) {
       beforePeggyBalance.should.be.bignumber.equal(100);
       beforeUserBalance.should.be.bignumber.equal(0);
 
-      await this.peggy.unlock(this.itemId, { from: relayer, gas: this.gasForLock });
+      await this.peggy.unlock(this.depositId, { from: relayer, gas: this.gasForLock });
       
       //Confirm that the tokens have been unlocked and transfered
       const afterPeggyBalance = Number(await this.token.balanceOf(this.peggy.address));
@@ -213,7 +213,7 @@ contract('Peggy', function (accounts) {
 
     it('should emit an event upon unlock containing the ecrow\'s recipient, token, amount, and nonce', async function () {
       //Get the event logs of an unlock
-      const {logs} = await this.peggy.unlock(this.itemId, { from: relayer, gas: this.gasForLock });
+      const {logs} = await this.peggy.unlock(this.depositId, { from: relayer, gas: this.gasForLock });
       const event = logs.find(e => e.event === 'LogUnlock');
 
       event.args._to.should.be.equal(userOne);
@@ -222,20 +222,20 @@ contract('Peggy', function (accounts) {
       Number(event.args._nonce).should.be.bignumber.equal(1);
     });
 
-    it('should update item lock statusit has been unlocked', async function () {
-      const startingLockStatus = await this.peggy.getStatus(this.itemId);
+    it('should update the lock status of deposits', async function () {
+      const startingLockStatus = await this.peggy.getStatus(this.depositId);
       startingLockStatus.should.be.equal(true);
       
-      await this.peggy.unlock(this.itemId, { from: relayer, gas: this.gasForLock });
+      await this.peggy.unlock(this.depositId, { from: relayer, gas: this.gasForLock });
 
-      const endingLockStatus = await this.peggy.getStatus(this.itemId);
+      const endingLockStatus = await this.peggy.getStatus(this.depositId);
       endingLockStatus.should.be.equal(false);
 
     });
 
   });
 
-  describe('Withdrawal of items by sender', function(){
+  describe('Withdrawal of deposits by sender', function(){
 
     beforeEach(async function() {
       this.peggy = await Peggy.new();
@@ -250,7 +250,7 @@ contract('Peggy', function (accounts) {
       await this.token.mint(userOne, 100, { from: relayer }).should.be.fulfilled;
 
       await this.token.approve(this.peggy.address, 100, { from: userOne }).should.be.fulfilled;
-      this.itemId = await this.peggy.lock.call(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
+      this.depositId = await this.peggy.lock.call(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
       await this.peggy.lock(this.recipient, this.token.address, 100, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
 
       //Lower and upper bound to allow results in range of 0.01%
@@ -263,15 +263,15 @@ contract('Peggy', function (accounts) {
       this.gasPrice = 200000000000; //From truffle config
     });
 
-    it('should not allow non-senders to withdraw other\'s items', async function () {
-      await this.peggy.withdraw(this.itemId, { from: userThree, gas: this.gasForLock }).should.be.rejectedWith(EVMRevert);
+    it('should not allow non-senders to withdraw other\'s deposits', async function () {
+      await this.peggy.withdraw(this.depositId, { from: userThree, gas: this.gasForLock }).should.be.rejectedWith(EVMRevert);
     });
 
-    it('should allow senders to withdraw their own items', async function () {
-      await this.peggy.withdraw(this.itemId, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
+    it('should allow senders to withdraw their own deposits', async function () {
+      await this.peggy.withdraw(this.depositId, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
     });
 
-    it('should return erc20 to user upon withdrawal of itemized funds', async function () {
+    it('should return erc20 to user upon withdrawal of deposited funds', async function () {
       //Confirm that the tokens are locked on the contract
       const beforePeggyBalance = Number(await this.token.balanceOf(this.peggy.address));
       const beforeUserBalance = Number(await this.token.balanceOf(userOne));
@@ -279,7 +279,7 @@ contract('Peggy', function (accounts) {
       beforePeggyBalance.should.be.bignumber.equal(100);
       beforeUserBalance.should.be.bignumber.equal(0);
 
-      await this.peggy.withdraw(this.itemId, { from: userOne, gas: this.gasForWithdraw }).should.be.fulfilled;
+      await this.peggy.withdraw(this.depositId, { from: userOne, gas: this.gasForWithdraw }).should.be.fulfilled;
       
       //Confirm that the tokens have been unlocked and transfered
       const afterPeggyBalance = Number(await this.token.balanceOf(this.peggy.address));
@@ -289,7 +289,7 @@ contract('Peggy', function (accounts) {
       afterUserBalance.should.be.bignumber.equal(100);
     });
 
-    it('should return ethereum to user upon withdrawal of itemized funds', async function () {
+    it('should return ethereum to user upon withdrawal of deposited funds', async function () {
       const id = await this.peggy.lock.call(this.recipient, this.ethereumToken, this.weiAmount, { from: userTwo, value: this.weiAmount, gas: this.gasForLock }).should.be.fulfilled;
       await this.peggy.lock(this.recipient, this.ethereumToken, this.weiAmount, { from: userTwo, value: this.weiAmount, gas: this.gasForLock }).should.be.fulfilled;
 
@@ -318,13 +318,13 @@ contract('Peggy', function (accounts) {
       contractDifference.should.be.bignumber.within(lowestAcceptedBalance, highestAcceptedBalance);
     });
 
-    it('should emit an event upon user withdrawal containing the item\'s id', async function () {      
+    it('should emit an event upon user withdrawal containing the deposit\'s id', async function () {      
       //Get the event logs of a token withdrawl
-      const {logs} = await this.peggy.withdraw(this.itemId, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
+      const {logs} = await this.peggy.withdraw(this.depositId, { from: userOne, gas: this.gasForLock }).should.be.fulfilled;
       const event = logs.find(e => e.event === 'LogWithdraw');
 
       //Check the event's parameters
-      event.args._id.should.be.bignumber.equal(this.itemId);
+      event.args._id.should.be.bignumber.equal(this.depositId);
       event.args._to.should.be.equal(userOne);
       event.args._token.should.be.equal(this.token.address);
       Number(event.args._value).should.be.bignumber.equal(100);

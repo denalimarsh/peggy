@@ -4,7 +4,7 @@ import "../Processor.sol";
 
 contract TestProcessor is Processor {
 
-    event LogItemCreated(bytes32 _id);
+    event LogDepositCreated(bytes32 _id);
     
     function() external payable {}
 
@@ -19,7 +19,7 @@ contract TestProcessor is Processor {
         returns(bytes32)
     {
         bytes32 id = create(_sender, _recipient, _token, _amount);
-        emit LogItemCreated(id);
+        emit LogDepositCreated(id);
         return id;
     }
 
@@ -44,14 +44,14 @@ contract TestProcessor is Processor {
     }
 
     //Wrapper function to test internal method
-    function callGetItem(
+    function callGetDeposit(
         bytes32 _id
     )
         public 
         view
         returns(address, bytes memory, address, uint256, uint256)
     {
-        return getItem(_id);
+        return getDeposit(_id);
     }
 
 }

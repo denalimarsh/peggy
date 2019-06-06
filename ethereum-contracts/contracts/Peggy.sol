@@ -86,11 +86,11 @@ contract Peggy is Processor {
     }
 
     /* 
-     * @dev: Locks received funds and creates new items.
+     * @dev: Locks received funds and creates new deposits.
      *
      * @param _recipient: bytes representation of destination address.
      * @param _token: token address in origin chain (0x0 if ethereum)
-     * @param _amount: value of item
+     * @param _amount: value of deposit
      */
     function lock(
         bytes memory _recipient,
@@ -111,7 +111,7 @@ contract Peggy is Processor {
           require(ERC20(_token).transferFrom(msg.sender, address(this), _amount));
         }
 
-        //Create an item with a unique key.
+        //Create an deposit with a unique key.
         bytes32 id = create(
             msg.sender,
             _recipient,
@@ -138,7 +138,7 @@ contract Peggy is Processor {
      *       In the future bidirectional system, unlocking functionality
      *       will be guarded by validator signatures.
      *
-     * @param _id: Unique key of the item.
+     * @param _id: Unique key of the deposit.
      */
     function unlock(
         bytes32 _id
@@ -150,7 +150,7 @@ contract Peggy is Processor {
     {
         require(isLocked(_id));
 
-        // Transfer item's funds and unlock it
+        // Transfer deposit's funds and unlock it
         (address payable sender,
             address token,
             uint256 amount,
@@ -174,7 +174,7 @@ contract Peggy is Processor {
      *       purposes, allowing users to withdraw their funds. This
      *       functionality will be removed in production.
      *
-     * @param _id: Unique key of the item.
+     * @param _id: Unique key of the deposit.
      */
     function withdraw(
         bytes32 _id
@@ -186,7 +186,7 @@ contract Peggy is Processor {
     {
         require(isLocked(_id));
 
-        // Transfer item's funds and unlock it
+        // Transfer deposit's funds and unlock it
         (address payable sender,
             address token,
             uint256 amount,
@@ -205,9 +205,9 @@ contract Peggy is Processor {
     }
 
     /*
-    * @dev: Exposes an item's current status.
+    * @dev: Exposes an deposit's current status.
     *
-    * @param _id: The item in question.
+    * @param _id: The deposit in question.
     * @return: Boolean indicating the lock status.
     */
     function getStatus(
@@ -221,23 +221,23 @@ contract Peggy is Processor {
     }
 
     /*
-    * @dev: Allows access to an item's information via its unique identifier.
+    * @dev: Allows access to an deposit's information via its unique identifier.
     *
-    * @param _id: The item to be viewed.
+    * @param _id: The deposit to be viewed.
     * @return: Original sender's address.
     * @return: Intended receiver's address in bytes.
     * @return: The token's address.
-    * @return: The amount locked in the item.
-    * @return: The item's unique nonce.
+    * @return: The amount locked in the deposit.
+    * @return: The deposit's unique nonce.
     */
-    function viewItem(
+    function viewDeposit(
         bytes32 _id
     )
         public 
         view
         returns(address, bytes memory, address, uint256, uint256)
     {
-        return getItem(_id);
+        return getDeposit(_id);
     }
 
     /*

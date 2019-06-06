@@ -5,8 +5,8 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
   /*
    *  @title: Processor
-   *  @dev: Processes requests for item locking and unlocking by
-   *        storing an item's information then relaying the funds
+   *  @dev: Processes requests for deposit locking and unlocking by
+   *        storing a deposit's information then relaying the funds
    *        the original sender.
    */
 contract Processor {
@@ -14,9 +14,9 @@ contract Processor {
     using SafeMath for uint256;
 
     /*
-    * @dev: Item struct to store information.
+    * @dev:  Deposit struct to store information.
     */    
-    struct Item {
+    struct Deposit {
         address payable sender;
         bytes recipient;
         address token;
@@ -26,10 +26,10 @@ contract Processor {
     }
 
     uint256 public nonce;
-    mapping(bytes32 => Item) private items;
+    mapping(bytes32 => Deposit) private deposits;
 
     /*
-    * @dev: Constructor, initalizes item count.
+    * @dev: Constructor, initalizes deposit count.
     */
     constructor() 
         public
@@ -39,21 +39,21 @@ contract Processor {
 
     modifier onlySender(bytes32 _id) {
         require(
-            msg.sender == items[_id].sender,
+            msg.sender == deposits[_id].sender,
             'Must be the original sender.'
         );
         _;
     }
 
     modifier canDeliver(bytes32 _id) {
-        if(items[_id].token == address(0)) {
+        if(deposits[_id].token == address(0)) {
             require(
-                address(this).balance >= items[_id].amount,
+                address(this).balance >= deposits[_id].amount,
                 'Insufficient ethereum balance for delivery.'
             );
         } else {
             require(
-                ERC20(items[_id].token).balanceOf(address(this)) >= items[_id].amount,
+                ERC20(deposits[_id].token).balanceOf(address(this)) >= deposits[_id].amount,
                 'Insufficient ERC20 token balance for delivery.'
             );            
         }
@@ -88,7 +88,7 @@ contract Processor {
     {
         nonce++;
 
-        bytes32 itemKey = keccak256(
+        bytes32 depositKey = keccak256(
             abi.encodePacked(
                 _sender,
                 _recipient,
@@ -98,7 +98,7 @@ contract Processor {
             )
         );
         
-        items[itemKey] = Item(
+        deposits[depositKey] = Deposit(
             _sender,
             _recipient,
             _token,
@@ -107,14 +107,14 @@ contract Processor {
             true
         );
 
-        return itemKey;
+        return depositKey;
     }
 
     /*
-    * @dev: Completes the item by sending the funds to the
-    *       original sender and unlocking the item.
+    * @dev: Completes the deposit by sending the funds to the
+    *       original sender and unlocking the deposit.
     *
-    * @param _id: The item to be completed.
+    * @param _id: The deposit to be completed.
     */
     function complete(
         bytes32 _id
@@ -125,14 +125,14 @@ contract Processor {
     {
         require(isLocked(_id));
 
-        //Get locked item's attributes for return
-        address payable sender = items[_id].sender;
-        address token = items[_id].token;
-        uint256 amount = items[_id].amount;
-        uint256 uniqueNonce = items[_id].nonce;
+        //Get locked deposit's attributes for return
+        address payable sender = deposits[_id].sender;
+        address token = deposits[_id].token;
+        uint256 amount = deposits[_id].amount;
+        uint256 uniqueNonce = deposits[_id].nonce;
 
         //Update lock status
-        items[_id].locked = false;
+        deposits[_id].locked = false;
 
         //Transfers based on token address type
         if (token == address(0)) {
@@ -158,10 +158,10 @@ contract Processor {
     }
 
     /*
-    * @dev: Checks if an individual item exists.
+    * @dev: Checks if an individual deposit exists.
     *
-    * @param _id: The unique item's id.
-    * @return: Boolean indicating if the item exists in memory.
+    * @param _id: The unique deposit's id.
+    * @return: Boolean indicating if the deposit exists in memory.
     */
     function isLocked(
         bytes32 _id
@@ -170,34 +170,34 @@ contract Processor {
         view
         returns(bool)
     {
-        return(items[_id].locked);
+        return(deposits[_id].locked);
     }
 
     /*
-    * @dev: Gets an item's information
+    * @dev: Gets an deposit's information
     *
-    * @param _Id: The item containing the desired information.
+    * @param _Id: The deposit containing the desired information.
     * @return: Sender's address.
     * @return: Recipient's address in bytes.
     * @return: Token address.
-    * @return: Amount of ethereum/erc20 in the item.
-    * @return: Unique nonce of the item.
+    * @return: Amount of ethereum/erc20 in the deposit.
+    * @return: Unique nonce of the deposit.
     */
-    function getItem(
+    function getDeposit(
         bytes32 _id
     )
         internal 
         view
         returns(address payable, bytes memory, address, uint256, uint256)
     {
-        Item memory item = items[_id];
+        Deposit memory deposit = deposits[_id];
 
         return(
-            item.sender,
-            item.recipient,
-            item.token,
-            item.amount,
-            item.nonce
+            deposit.sender,
+            deposit.recipient,
+            deposit.token,
+            deposit.amount,
+            deposit.nonce
         );
     }
 }
