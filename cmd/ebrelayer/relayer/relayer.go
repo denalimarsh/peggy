@@ -103,10 +103,12 @@ func InitRelayer(cdc *amino.Codec, chainId string, provider string,
 				}
 
 				// Parse the event's payload into a struct
-				claim, claimErr := txs.ParsePayload(validatorAddress, &event)
-				if claimErr != nil {
-					fmt.Errorf("Error: %s", claimErr)
+				nonce, sender, recipient, amount, claimErr := txs.ParseEvent(&event)
+				if parseErr != nil {
+					fmt.Errorf("Error: %s", parseErr)
 				}
+
+				claim := txs.PackageClaim(nonce, sender, recipient, amount, validatorAddress)
 
 				// Initiate the relay
 				relayErr := txs.RelayEvent(chainId, cdc, validatorAddress, validatorName, passphrase, &claim)

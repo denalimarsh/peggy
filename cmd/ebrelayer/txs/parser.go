@@ -19,29 +19,30 @@ import (
   "github.com/swishlabsco/cosmos-ethereum-bridge/x/ethbridge/types"
 )
 
-func ParsePayload(validator sdk.AccAddress, event *events.LockEvent) (types.EthBridgeClaim, error) {
-  
-  witnessClaim := types.EthBridgeClaim{}
+func ParseEvent(event *events.LockEvent) (int, string, sdk.AccAddress, sdk.Coins, error) {
+  //validator sdk.AccAddress, 
+
+  // witnessClaim := types.EthBridgeClaim{}
 
   // Nonce type casting (*big.Int -> int)
   nonce, nonceErr := strconv.Atoi(event.Nonce.String())
   if nonceErr != nil {
     fmt.Errorf("%s", nonceErr)
   }
-  witnessClaim.Nonce = nonce
+  // witnessClaim.Nonce = nonce
 
   // EthereumSender type casting (address.common -> string)
-  witnessClaim.EthereumSender = event.From.Hex()
+  sender := event.From.Hex()
 
   // CosmosReceiver type casting (bytes[] -> sdk.AccAddress)
   recipient, recipientErr := sdk.AccAddressFromBech32(string(event.To[:]))
   if recipientErr != nil {
     fmt.Errorf("%s", recipientErr)
   }
-  witnessClaim.CosmosReceiver = recipient
+  // witnessClaim.CosmosReceiver = recipient
 
   // Validator is already the correct type (sdk.AccAddress)
-  witnessClaim.Validator = validator
+  // witnessClaim.Validator = validator
 
   // Amount type casting (*big.Int -> sdk.Coins)
   ethereumCoin := []string {event.Value.String(),"ethereum"}
@@ -49,7 +50,19 @@ func ParsePayload(validator sdk.AccAddress, event *events.LockEvent) (types.EthB
   if coinErr != nil {
     fmt.Errorf("%s", coinErr)
   }
-  witnessClaim.Amount = weiAmount
+  // witnessClaim.Amount = weiAmount
 
-  return witnessClaim, nil
+  // return witnessClaim, nil
+  return nonce, sender, recipient, weiAmount, nil
+}
+
+func PackageClaim(nonce int, sender string, recipient sdk.AccAddress, amount sdk.Coins, validator sdk.AccAddress,) types.EthBridgeClaim {
+  claim := types.EthBridgeClaim {
+    Nonce = nonce,
+    EthereumSender = sender,
+    CosmosReceiver = recipient,
+    Validator = validator,
+    Amount = amount,
+  }
+  return claim
 }
