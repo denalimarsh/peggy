@@ -34,6 +34,10 @@ func InitRelayer(cdc *amino.Codec, chainId string, provider string, contractAddr
 	}
 	fmt.Printf("\nStarted ethereum websocket with provider: %s", provider)
 
+	// Declare a queue which holds events in processing until they've
+	// reached the finality threshold before presenting them to validators
+	finalityQueue := events.NewQueue(1)
+
 	// We need the contract address in bytes[] for the query
 	query := ethereum.FilterQuery{
 		Addresses: []common.Address{contractAddress},
@@ -61,15 +65,17 @@ func InitRelayer(cdc *amino.Codec, chainId string, provider string, contractAddr
 		case vLog := <-logs:
 			// Check if the event is a 'LogLock' event
 			if vLog.Topics[0].Hex() == eventSig {
-				fmt.Printf("\n\nTransaction %v witnessed on block number %v.",
-					vLog.TxHash.Hex(), vLog.BlockNumber)
+				fmt.Printf("\n\nTransaction %v witnessed on block number %v.", vLog.TxHash.Hex(), vLog.BlockNumber)
 
 				// Parse the event data into a new LockEvent using the contract's ABI
 				event := events.NewLockEvent(contractABI, "LogLock", vLog.Data, vLog.BlockNumber, vLog.TxHash.Hex())
 
 				// Add the event to the record
 				events.NewEventWrite(vLog.TxHash.Hex(), event)
+				// Push the event to the finality queue
+				finalityQueue.Push(&event)
 
+				// TODO: only process events if they've been in queue for over 6 blocks
 				// Parse the event's payload into a struct
 				claim, err := txs.ParsePayload(validatorAddress, &event)
 				if err != nil {
