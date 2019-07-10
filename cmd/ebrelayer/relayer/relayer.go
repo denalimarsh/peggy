@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	amino "github.com/tendermint/go-amino"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/cosmos/peggy/cmd/ebrelayer/contract"
 	"github.com/cosmos/peggy/cmd/ebrelayer/events"
@@ -37,6 +39,14 @@ func InitRelayer(cdc *amino.Codec, chainId string, provider string, contractAddr
 	// Declare a queue which holds events in processing until they've
 	// reached the finality threshold before presenting them to validators
 	finalityQueue := events.NewQueue(1)
+
+	// Start a cron job to check the block header number
+	// c := cron.New()
+	// c.AddFunc("@every 10s", getBlockNumber(client))
+	// go c.Start()
+	// sig := make(chan os.Signal)
+	// signal.Notify(sig, os.Interrupt, os.Kill)
+	// <-sig
 
 	// We need the contract address in bytes[] for the query
 	query := ethereum.FilterQuery{
@@ -76,19 +86,33 @@ func InitRelayer(cdc *amino.Codec, chainId string, provider string, contractAddr
 				finalityQueue.Push(&event)
 
 				// TODO: only process events if they've been in queue for over 6 blocks
-				// Parse the event's payload into a struct
-				claim, err := txs.ParsePayload(validatorAddress, &event)
-				if err != nil {
-					return err
-				}
+				validEvents := finalityQueue.GetFinalEvents(5545555)
+				for event := range *validEvents {
+					// Parse the event's payload into a struct
+					claim, err := txs.ParsePayload(validatorAddress, &event)
+					if err != nil {
+						return err
+					}
 
-				// Initiate the relay
-				err = txs.RelayEvent(chainId, cdc, validatorAddress, validatorName, passphrase, &claim)
-				if err != nil {
-					return err
+					// Initiate the relay
+					err = txs.RelayEvent(chainId, cdc, validatorAddress, validatorName, passphrase, &claim)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
 	}
 	return fmt.Errorf("Error: Relayer timed out.")
+}
+
+// RunEverySecond : cron delay timer
+func getBlockNumber(client *ethclient.Client) {
+	header, err := client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(header.Number.String()) // 5671744
+	// blockNumber := big.NewInt(5671744)
+	fmt.Printf("%v\n", time.Now())
 }

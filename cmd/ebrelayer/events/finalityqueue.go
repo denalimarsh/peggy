@@ -83,18 +83,18 @@ func (q *Queue) IsEventProcessing(txHash string) bool {
 }
 
 // GetFinalEvents : Return all the events which have passed the finality threshold
-func (q *Queue) GetFinalEvents(currentBlockNumber uint64) ([]LockEvent, int) {
-	// Valid events must have occured at least 6 blocks ago
-	validEvents := make([]LockEvent, len(q.events))
+func (q *Queue) GetFinalEvents(currentBlockNumber uint64) *Queue {
 
+	validQueue := NewQueue(len(q.events))
+
+	// Valid events must have occured at least 6 blocks ago
 	for q.Peek().BlockNumber+FinalityThreshold > currentBlockNumber {
 		// Add the event to the validated event array
-		// validEvent := LockEvent{}
 		validEvent := q.Pop()
-		validEvents = append(validEvents, validEvent)
+		validQueue.Push(validEvent)
 	}
 
-	return validEvents, len(validEvents)
+	return validQueue
 }
 
 // func main() {
