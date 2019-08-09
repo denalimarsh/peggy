@@ -11,6 +11,7 @@ Unidirectional Peggy is the starting point for cross chain value transfers from 
 This codebase, including all smart contract components, have not been professionally audited and are not intended for use in a production environment. As such, users should NOT trust the system to securely hold mainnet funds. Any developers attempting to use Unidirectional Peggy on the mainnet at this time will need to develop their own smart contracts or find another implementation.
 
 ## Architecture
+
 See [here](./docs/architecture.md)
 
 ## Example application
@@ -143,7 +144,7 @@ The easiest way to do this for now, assuming you have Metamask setup for Ropsten
 - 6.  Enter the following for the variables under function lock():
 
 ```
- _recipient = [HASHED_COSMOS_RECIPIENT_ADDRESS] *(for testuser cosmos1pjtgu0vau2m52nrykdpztrt887aykue0hq7dfh, enter "0x636f736d6f7331706a74677530766175326d35326e72796b64707a74727438383761796b756530687137646668")*
+ _recipient = [HEXADECIMAL_COSMOS_RECIPIENT_ADDRESS] *(for testuser cosmos1pjtgu0vau2m52nrykdpztrt887aykue0hq7dfh, enter "0x636f736d6f7331706a74677530766175326d35326e72796b64707a74727438383761796b756530687137646668")*
  _token = [DEPLOYED_TOKEN_ADDRESS] *(erc20 not currently supported, enter "0x0000000000000000000000000000000000000000" for ethereum)*
  _amount = [WEI_AMOUNT]
 ```
