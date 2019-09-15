@@ -203,10 +203,12 @@ To run the Ethereum Bridge on the Ropsten testnet, repeat the steps for running 
 # Specify the Ropsten network via a --network flag for the following commands...
 $ yarn migrate --network ropsten
 $ yarn peggy:address --network ropsten
-$ yarn peggy:lock --network ropsten
 
 # Start ebrelayer with Ropsten network websocket
 $ ebrelayer init wss://ropsten.infura.io/ws [PEGGY_DEPLOYED_ADDRESS] "LogLock\(bytes32,address,bytes,address,uint256,uint256\)" validator --chain-id=peggy
+
+# Send lock transaction on Ropsten testnet
+$ yarn peggy:lock --network ropsten
 ```
 
 ## Using the modules in other projects
