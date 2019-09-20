@@ -154,7 +154,7 @@ ebrelayer status
 # Start ebrelayer on the contract's deployed address with [LOCAL_WEB_SOCKET], [PEGGY_DEPLOYED_ADDRESS], and [EVENT_SIGNATURE]
 # Example [LOCAL_WEB_SOCKET]: ws://127.0.0.1:8545/
 # Example [PEGGY_DEPLOYED_ADDRESS]: 0xC4cE93a5699c68241fc2fB503Fb0f21724A624BB
-# Example [EVENT_SIGNATURE]: LogLock\(bytes32,address,bytes,address,uint256,uint256\)
+# Example [EVENT_SIGNATURE]: LogLock\(bytes32,address,address,uint256,uint256\)
 
 $ ebrelayer init [LOCAL_WEB_SOCKET] [PEGGY_DEPLOYED_ADDRESS] [EVENT_SIGNATURE] validator --chain-id=peggy
 
