@@ -13,7 +13,7 @@ import (
 func TestLoadABI(t *testing.T) {
 
 	//Get the ABI ready
-	rawContractAbi, errorMsg := ioutil.ReadFile("./PeggyABI.json")
+	rawContractAbi, errorMsg := ioutil.ReadFile("./abis/Peggy.abi")
 	if errorMsg != nil {
 		log.Fatal(errorMsg)
 	}

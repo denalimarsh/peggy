@@ -2,6 +2,7 @@ module.exports = async () => {
   /*******************************************
    *** Set up
    ******************************************/
+  require("dotenv").config();
   let Web3 = require("web3");
   var HDWalletProvider = require("@truffle/hdwallet-provider");
 
@@ -13,7 +14,7 @@ module.exports = async () => {
    *** Constants
    ******************************************/
   const COSMOS_RECIPIENT =
-    "0x636f736d6f7331706a74677530766175326d35326e72796b64707a74727438383761796b756530687137646668";
+    "0x636F736D6F73316173793665337665356A7064653768667164796D716C67736A35346E35326E37363330793075";
   const COIN_DENOM = "0x0000000000000000000000000000000000000000";
   const AMOUNT = 10;
   const NETWORK_ROPSTEN =

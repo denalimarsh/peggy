@@ -16,7 +16,8 @@ module.exports = {
           enabled: true,
           runs: 200
         }
-      }
+      },
+      skipDryRun: true
     },
     ganache: {
       host: "127.0.0.1",

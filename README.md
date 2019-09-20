@@ -113,14 +113,14 @@ Create a .env file with environment variable LOCAL_PROVIDER - an example configu
 
 ### Terminal 1: Start local blockchain
 
-```
+```bash
 $ cd testnet-contracts/
 $ yarn develop
 ```
 
 ### Terminal 2: Compile and deploy Peggy contract
 
-```
+```bash
 $ cd testnet-contracts/
 
 # Copy contract ABI to go modules:
@@ -135,7 +135,7 @@ $ yarn peggy:address
 
 ### Terminal 3: Build and start Ethereum Bridge
 
-```
+```bash
 # Build the Ethereum Bridge application
 $ make install
 
@@ -147,28 +147,28 @@ $ ebd start
 
 For automated relaying, there is a relayer service that can be run that will automatically watch and relay events (local web socket and deployed address parameters may vary).
 
-```
+```bash
 # Check ebrelayer connection to ebd
 ebrelayer status
 
-# Start ebrelayer on the contract's deployed address with [LOCAL_WEB_SOCKET] and [PEGGY_DEPLOYED_ADDRESS]
+# Start ebrelayer on the contract's deployed address with [LOCAL_WEB_SOCKET], [PEGGY_DEPLOYED_ADDRESS], and [EVENT_SIGNATURE]
 # Example [LOCAL_WEB_SOCKET]: ws://127.0.0.1:8545/
 # Example [PEGGY_DEPLOYED_ADDRESS]: 0xC4cE93a5699c68241fc2fB503Fb0f21724A624BB
+# Example [EVENT_SIGNATURE]: LogLock\(bytes32,address,bytes,address,uint256,uint256\)
 
-$ ebrelayer init [LOCAL_WEB_SOCKET] [PEGGY_DEPLOYED_ADDRESS] "LogLock\(bytes32,address,bytes,address,uint256,uint256\)" validator --chain-id=testing
+$ ebrelayer init [LOCAL_WEB_SOCKET] [PEGGY_DEPLOYED_ADDRESS] [EVENT_SIGNATURE] validator --chain-id=peggy
 
 # Enter password and press enter
 # You should see a message like: Started ethereum websocket with provider: [LOCAL_WEB_SOCKET] \ Subscribed to contract events on address: [PEGGY_DEPLOYED_ADDRESS]
 
-# The relayer will now watch the contract on Ropsten and create a claim whenever it detects a lock event.
-
+# The relayer will now watch the contract and create a claim whenever it detects a lock event.
 ```
 
 ### Using Terminal 2: Send lock transaction to contract
 
-```
+```bash
 # The lock transaction uses the default parameters:
-# [HASHED_COSMOS_RECIPIENT_ADDRESS] = 0x636f736d6f7331706a74677530766175326d35326e72796b64707a74727438383761796b756530687137646668
+# [HASHED_COSMOS_RECIPIENT_ADDRESS] = 0x636F736D6F73316173793665337665356A7064653768667164796D716C67736A35346E35326E37363330793075
 # [DEPLOYED_TOKEN_ADDRESS] = 0x0000000000000000000000000000000000000000
 # [WEI_AMOUNT] = 10
 
@@ -182,12 +182,12 @@ Block number: 5
 Event ID: cc10955295e555130c865949fb1fd48dba592d607ae582b43a2f3f0addce83f2
 Token: 0x0000000000000000000000000000000000000000
 Sender: 0xc230f38FF05860753840e0d7cbC66128ad308B67
-Recipient: cosmos1pjtgu0vau2m52nrykdpztrt887aykue0hq7dfh
+Recipient: cosmos1asy6e3ve5jpde7hfqdymqlgsj54n52n7630y0u
 Value: 10
 Nonce: 1
 
 # You can also confirm the tokens have been minted by using the CLI again:
-$ ebcli query account cosmos1pjtgu0vau2m52nrykdpztrt887aykue0hq7dfh --trust-node
+$ ebcli query account cosmos1asy6e3ve5jpde7hfqdymqlgsj54n52n7630y0u --trust-node
 ```
 
 We are working on implementing custom parameters to the 'yarn peggy:lock' command. Currently, you can add custom parameters to the lock transaction using an online service such as Remix.
@@ -196,7 +196,7 @@ We are working on implementing custom parameters to the 'yarn peggy:lock' comman
 
 To run the Ethereum Bridge on the Ropsten testnet, repeat the steps for running locally with the following changes:
 
-```
+```bash
 # Add environment variable MNEMONIC from your MetaMask account
 # Add environment variable INFURA_PROJECT_ID from your Infura account.
 
@@ -205,7 +205,7 @@ $ yarn migrate --network ropsten
 $ yarn peggy:address --network ropsten
 
 # Start ebrelayer with Ropsten network websocket
-$ ebrelayer init wss://ropsten.infura.io/ws [PEGGY_DEPLOYED_ADDRESS] "LogLock\(bytes32,address,bytes,address,uint256,uint256\)" validator --chain-id=peggy
+$ ebrelayer init wss://ropsten.infura.io/ws [PEGGY_DEPLOYED_ADDRESS] [EVENT_SIGNATURE] validator --chain-id=peggy
 
 # Send lock transaction on Ropsten testnet
 $ yarn peggy:lock --network ropsten
