@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // AbiPath : path to the file containing the smart contract's ABI
@@ -37,4 +38,18 @@ func LoadABI() abi.ABI {
 	}
 
 	return contractAbi
+}
+
+// ParseEventSignatures : parse event signatures from compiled contract ABI
+func ParseEventSignatures(contractABI abi.ABI) map[string]common.Hash {
+	eventSigs := make(map[string]common.Hash)
+	contractEvents := contractABI.Events
+
+	for event := range contractEvents {
+		eventName := contractEvents[event].Name
+		id := contractEvents[event].Id()
+		eventSigs[eventName] = id
+	}
+
+	return eventSigs
 }
