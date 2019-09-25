@@ -58,15 +58,29 @@ func InitRelayer(cdc *amino.Codec, chainId string, provider string, contractAddr
 	// Parse event signatures from ABI
 	contractEvents := contract.ParseEventSignatures(contractABI)
 
-	fmt.Printf("\nContract events:\n%v", contractEvents)
-
 	for {
 		select {
 		// Handle any errors
 		case err := <-sub.Err():
 			log.Fatal(err)
+
 		// vLog is raw event data
 		case vLog := <-logs:
+
+			// TODO: Move 'LogLock' functionality to switch statement
+			switch vLog.Topics[0] {
+			case contractEvents["LogLock"]:
+				fmt.Printf("LogLock event witnessed")
+			case contractEvents["LogUnlock"]:
+				fmt.Printf("LogUnlock event witnessed")
+			case contractEvents["LogWithdraw"]:
+				fmt.Printf("LogWithdraw event witnessed")
+			case contractEvents["LogLockingPaused"]:
+				fmt.Printf("LogLockingPaused event witnessed")
+			case contractEvents["LogLockingActivated"]:
+				fmt.Printf("LogLockingActivated event witnessed")
+			}
+
 			// Check if the event is a 'LogLock' event
 			if vLog.Topics[0].Hex() == eventSig {
 
