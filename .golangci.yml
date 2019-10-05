@@ -19,3 +19,9 @@ linters:
     - scopelint
     - stylecheck
     - funlen
+<<<<<<< HEAD
+=======
+    - whitespace
+    - dogsled
+    - godox
+>>>>>>> musnit/master_to_ct_2

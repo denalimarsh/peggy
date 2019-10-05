@@ -1,10 +1,16 @@
 # ETH Bridge Zone
 
+[![version](https://img.shields.io/github/tag/cosmos/peggy.svg)](https://github.com/cosmos/peggy/releases/latest)
 [![CircleCI](https://circleci.com/gh/cosmos/peggy/tree/master.svg?style=svg)](https://circleci.com/gh/cosmos/peggy/tree/master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cosmos/peggy)](https://goreportcard.com/report/github.com/cosmos/peggy)
+[![LoC](https://tokei.rs/b1/github/cosmos/peggy)](https://github.com/cosmos/peggy)
+[![API Reference](https://godoc.org/github.com/cosmos/peggy?status.svg)](https://godoc.org/github.com/cosmos/peggy)
 
 ## Summary
 
 Unidirectional Peggy is the starting point for cross chain value transfers from the Ethereum blockchain to Cosmos-SDK based blockchains as part of the Ethereum Cosmos Bridge project. The system accepts incoming transfers of Ethereum tokens on an Ethereum smart contract, locking them while the transaction is validated and equitable funds issued to the intended recipient on the Cosmos bridge chain.
+
+**Note**: Requires [Go 1.13+](https://golang.org/dl/)
 
 ## Disclaimer
 
@@ -22,7 +28,7 @@ See [here](./docs/architecture.md)
 
 These modules can be added to any Cosmos-SDK based chain, but a demo application/blockchain is provided with example code for how to integrate them. It can be installed and built as follows:
 
-```
+```bash
 # Clone the repository
 mkdir -p $GOPATH/src/github.com/cosmos
 cd $GOPATH/src/github.com/cosmos
@@ -100,7 +106,7 @@ First, run the cli rest-server
 ebcli rest-server --trust-node
 ```
 
-An api collection for Postman (https://www.getpostman.com/) is provided [here](./docs/peggy.postman_collection.json) which documents some API endpoints and can be used to interact with it.
+An api collection for [Postman](https://www.getpostman.com/) is provided [here](./docs/peggy.postman_collection.json) which documents some API endpoints and can be used to interact with it.
 Note: For checking account details/balance, you will need to change the cosmos addresses in the URLs, params and body to match the addresses you generated that you want to check.
 
 ## Running the bridge locally
@@ -192,6 +198,12 @@ yarn peggy:lock [HASHED_COSMOS_RECIPIENT_ADDRESS] [TOKEN_CONTRACT_ADDRESS] [WEI_
 
 ```
 
+# <<<<<<< HEAD
+
+`yarn peggy:lock --default` expected output in ebrelayer console:
+
+> > > > > > > musnit/master_to_ct_2
+
 `yarn peggy:lock --default` expected output in ebrelayer console:
 
 ```bash
@@ -214,6 +226,8 @@ Response:
   Tags:
     - action = create_bridge_claim
 ```
+
+<<<<<<< HEAD
 
 ## Running the bridge on the Ropsten testnet
 
@@ -283,6 +297,58 @@ Response:
     log: ""
 ```
 
+=======
+New Lock Transaction:
+Tx hash: 0x83e6ee88c20178616e68fee2477d21e84f16dcf6bac892b18b52c000345864c0
+Block number: 5
+Event ID: cc10955295e555130c865949fb1fd48dba592d607ae582b43a2f3f0addce83f2
+Token: 0x0000000000000000000000000000000000000000
+Sender: 0xc230f38FF05860753840e0d7cbC66128ad308B67
+Recipient: cosmos1pjtgu0vau2m52nrykdpztrt887aykue0hq7dfh
+Value: 10
+Nonce: 1
+
+Response:
+Height: 48
+TxHash: AD842C51B4347F0F610CB524529C2D8A875DACF12C8FE4B308931D266FEAD067
+Logs: [{"msg_index":0,"success":true,"log":"success"}]
+GasWanted: 200000
+GasUsed: 42112
+Tags: - action = create_bridge_claim
+
+```
+
+## Running the bridge on the Ropsten testnet
+
+To run the Ethereum Bridge on the Ropsten testnet, repeat the steps for running locally with the following changes:
+
+```
+
+# Add environment variable MNEMONIC from your MetaMask account
+
+# Add environment variable INFURA_PROJECT_ID from your Infura account.
+
+> > > > > > > musnit/master_to_ct_2
+
+# Specify the Ropsten network via a --network flag for the following commands...
+
+yarn migrate --network ropsten
+yarn peggy:address --network ropsten
+
+# <<<<<<< HEAD
+
+# Make sure to start ebrelayer with Ropsten network websocket
+
+ebrelayer init wss://ropsten.infura.io/ [PEGGY_DEPLOYED_ADDRESS] LogLock\(bytes32,address,bytes,address,uint256,uint256\) validator --chain-id=peggy
+
+# Send lock transaction on Ropsten testnet
+
+yarn peggy:lock --network ropsten [HASHED_COSMOS_RECIPIENT_ADDRESS][token_contract_address] [WEI_AMOUNT]
+
+```
+
 ## Using the modules in other projects
 
+>>>>>>> musnit/master_to_ct_2
 The ethbridge and oracle modules can be used in other cosmos-sdk applications by copying them into your application's modules folders and including them in the same way as in the example application. Each module may be moved to its own repo or integrated into the core Cosmos-SDK in future, for easier usage.
+```
