@@ -57,9 +57,6 @@ func InitCosmosRelayer(peggyContractAddress common.Address, rawPrivateKey string
 	auth.GasLimit = uint64(300000) // 300,000 Gwei in units
 	auth.GasPrice = gasPrice
 
-	// Load Peggy Contract's ABI
-	// contractABI := contract.LoadABI()
-
 	// address := common.HexToAddress(peggyContractAddress)
 	instance, err := peggy.NewPeggy(peggyContractAddress, client)
 	if err != nil {
