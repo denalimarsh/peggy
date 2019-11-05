@@ -33,11 +33,7 @@
   "scripts": {
     "develop": "truffle develop",
     "migrate": "truffle migrate --reset",
-<<<<<<< HEAD
-    "peggy:address": "truffle exec scripts/getBridgeContractAddress.js",
-=======
     "peggy:address": "truffle exec scripts/getBridgeAddress.js",
->>>>>>> master
     "peggy:lock": "truffle exec scripts/sendLockTx.js",
     "peggy:abi": "node scripts/formatAbi.js",
     "token:address": "truffle exec scripts/getTokenContractAddress.js",
