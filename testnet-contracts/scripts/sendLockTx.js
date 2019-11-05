@@ -41,8 +41,10 @@ module.exports = async () => {
       );
     }
   } else if (NETWORK_ROPSTEN) {
-    if (NUM_ARGS !== 2 || 5) {
-      return console.error("Error: invalid parameters, please try again.");
+    if (NUM_ARGS !== 2 && NUM_ARGS !== 5) {
+      return console.error(
+        "Error: invalid number of parameters, please try again."
+      );
     }
   } else if (DEFAULT_PARAMS) {
     if (NUM_ARGS !== 1) {
@@ -86,7 +88,7 @@ module.exports = async () => {
   if (NETWORK_ROPSTEN) {
     provider = new HDWalletProvider(
       process.env.MNEMONIC,
-      "https://ropsten.infura.io/".concat(process.env.INFURA_PROJECT_ID)
+      "https://ropsten.infura.io/v3/".concat(process.env.INFURA_PROJECT_ID)
     );
   } else {
     provider = new Web3.providers.HttpProvider(process.env.LOCAL_PROVIDER);
@@ -102,22 +104,27 @@ module.exports = async () => {
   const accounts = await web3.eth.getAccounts();
 
   // Send lock transaction
+  console.log("Connecting to contract....");
   const { logs } = await contract.deployed().then(function(instance) {
+    console.log("Connected to contract, sending lock...");
     return instance.lock(cosmosRecipient, coinDenom, amount, {
-      from: accounts[1],
+      from: accounts[0],
       value: coinDenom === DEFAULT_ETH_DENOM ? amount : 0,
       gas: 300000 // 300,000 Gwei
     });
   });
+
+  console.log("Sent lock...");
 
   // Get event logs
   const event = logs.find(e => e.event === "LogLock");
 
   // Parse event fields
   const lockEvent = {
-    id: event.args._id,
+    from: event.args._from,
     to: event.args._to,
     token: event.args._token,
+    symbol: event.args._symbol,
     value: Number(event.args._value),
     nonce: Number(event.args._nonce)
   };

@@ -1,6 +1,7 @@
 package ethbridge
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -9,18 +10,14 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/cosmos/peggy/x/ethbridge/types"
-	keeperLib "github.com/cosmos/peggy/x/oracle/keeper"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBasicMsgs(t *testing.T) {
 	//Setup
-	ctx, keeper, bankKeeper, validatorAddresses := keeperLib.CreateTestKeepers(t, 0.7, []int64{3, 7})
-	cdc := keeperLib.MakeTestCodec()
+	ctx, _, _, _, validatorAddresses, handler := CreateTestHandler(t, 0.7, []int64{3, 7})
 
 	valAddress := validatorAddresses[0]
-
-	handler := NewHandler(keeper, bankKeeper, types.DefaultCodespace, cdc)
 
 	//Unrecognized type
 	res := handler(ctx, sdk.NewTestMsg())
@@ -31,6 +28,27 @@ func TestBasicMsgs(t *testing.T) {
 	normalCreateMsg := types.CreateTestEthMsg(t, valAddress)
 	res = handler(ctx, normalCreateMsg)
 	require.True(t, res.IsOK())
+	for _, event := range res.Events {
+		for _, attribute := range event.Attributes {
+			value := string(attribute.Value)
+			switch key := string(attribute.Key); key {
+			case "module":
+				require.Equal(t, value, types.ModuleName)
+			case "sender":
+				require.Equal(t, value, valAddress.String())
+			case "ethereum_sender":
+				require.Equal(t, value, types.TestEthereumAddress)
+			case "cosmos_receiver":
+				require.Equal(t, value, types.TestAddress)
+			case "amount":
+				require.Equal(t, value, types.TestCoins)
+			case "status":
+				require.Equal(t, value, oracle.StatusTextToString[oracle.PendingStatusText])
+			default:
+				require.Fail(t, fmt.Sprintf("unrecognized event %s", key))
+			}
+		}
+	}
 
 	//Bad Creation
 	badCreateMsg := types.CreateTestEthMsg(t, valAddress)
@@ -40,34 +58,35 @@ func TestBasicMsgs(t *testing.T) {
 }
 
 func TestDuplicateMsgs(t *testing.T) {
-	ctx, keeper, bankKeeper, validatorAddresses := keeperLib.CreateTestKeepers(t, 0.7, []int64{3, 7})
-	cdc := keeperLib.MakeTestCodec()
+	ctx, _, _, _, validatorAddresses, handler := CreateTestHandler(t, 0.7, []int64{3, 7})
 
 	valAddress := validatorAddresses[0]
 
-	handler := NewHandler(keeper, bankKeeper, types.DefaultCodespace, cdc)
 	normalCreateMsg := types.CreateTestEthMsg(t, valAddress)
 	res := handler(ctx, normalCreateMsg)
 	require.True(t, res.IsOK())
-	require.Equal(t, res.Log, oracle.StatusTextToString[oracle.PendingStatusText])
+	for _, event := range res.Events {
+		for _, attribute := range event.Attributes {
+			value := string(attribute.Value)
+			if string(attribute.Key) == "status" {
+				require.Equal(t, value, oracle.StatusTextToString[oracle.PendingStatusText])
+			}
+		}
+	}
 
 	//Duplicate message from same validator
 	res = handler(ctx, normalCreateMsg)
 	require.False(t, res.IsOK())
 	require.True(t, strings.Contains(res.Log, "already processed message from validator for this id"))
-
 }
 
 func TestMintSuccess(t *testing.T) {
 	//Setup
-	ctx, keeper, bankKeeper, validatorAddresses := keeperLib.CreateTestKeepers(t, 0.7, []int64{2, 7, 1})
-	cdc := keeperLib.MakeTestCodec()
+	ctx, _, bankKeeper, _, validatorAddresses, handler := CreateTestHandler(t, 0.7, []int64{2, 7, 1})
 
 	valAddressVal1Pow2 := validatorAddresses[0]
 	valAddressVal2Pow7 := validatorAddresses[1]
 	valAddressVal3Pow1 := validatorAddresses[2]
-
-	handler := NewHandler(keeper, bankKeeper, types.DefaultCodespace, cdc)
 
 	//Initial message
 	normalCreateMsg := types.CreateTestEthMsg(t, valAddressVal1Pow2)
@@ -84,7 +103,14 @@ func TestMintSuccess(t *testing.T) {
 	expectedCoins, err := sdk.ParseCoins(types.TestCoins)
 	require.NoError(t, err)
 	require.True(t, receiverCoins.IsEqual(expectedCoins))
-	require.Equal(t, res.Log, oracle.StatusTextToString[oracle.SuccessStatusText])
+	for _, event := range res.Events {
+		for _, attribute := range event.Attributes {
+			value := string(attribute.Value)
+			if string(attribute.Key) == "status" {
+				require.Equal(t, value, oracle.StatusTextToString[oracle.SuccessStatusText])
+			}
+		}
+	}
 
 	//Additional message from third validator fails and does not mint
 	normalCreateMsg = types.CreateTestEthMsg(t, valAddressVal3Pow1)
@@ -100,8 +126,7 @@ func TestMintSuccess(t *testing.T) {
 
 func TestNoMintFail(t *testing.T) {
 	//Setup
-	ctx, keeper, bankKeeper, validatorAddresses := keeperLib.CreateTestKeepers(t, 0.71, []int64{3, 4, 3})
-	cdc := keeperLib.MakeTestCodec()
+	ctx, _, bankKeeper, _, validatorAddresses, handler := CreateTestHandler(t, 0.71, []int64{3, 4, 3})
 
 	valAddressVal1Pow3 := validatorAddresses[0]
 	valAddressVal2Pow4 := validatorAddresses[1]
@@ -114,24 +139,41 @@ func TestNoMintFail(t *testing.T) {
 	ethClaim3 := types.CreateTestEthClaim(t, valAddressVal3Pow3, types.NewEthereumAddress(types.TestEthereumAddress), types.AltTestCoins)
 	ethMsg3 := NewMsgCreateEthBridgeClaim(ethClaim3)
 
-	handler := NewHandler(keeper, bankKeeper, types.DefaultCodespace, cdc)
-
 	//Initial message
 	res := handler(ctx, ethMsg1)
 	require.True(t, res.IsOK())
-	require.True(t, strings.Contains(res.Log, oracle.StatusTextToString[oracle.PendingStatusText]))
-	require.Equal(t, res.Log, oracle.StatusTextToString[oracle.PendingStatusText])
+	for _, event := range res.Events {
+		for _, attribute := range event.Attributes {
+			value := string(attribute.Value)
+			if string(attribute.Key) == "status" {
+				require.Equal(t, value, oracle.StatusTextToString[oracle.PendingStatusText])
+			}
+		}
+	}
 
 	//Different message from second validator succeeds
 	res = handler(ctx, ethMsg2)
 	require.True(t, res.IsOK())
-	require.True(t, strings.Contains(res.Log, oracle.StatusTextToString[oracle.PendingStatusText]))
-	require.Equal(t, res.Log, oracle.StatusTextToString[oracle.PendingStatusText])
+	for _, event := range res.Events {
+		for _, attribute := range event.Attributes {
+			value := string(attribute.Value)
+			if string(attribute.Key) == "status" {
+				require.Equal(t, value, oracle.StatusTextToString[oracle.PendingStatusText])
+			}
+		}
+	}
 
 	//Different message from third validator succeeds but results in failed prophecy with no minting
 	res = handler(ctx, ethMsg3)
 	require.True(t, res.IsOK())
-	require.Equal(t, res.Log, oracle.StatusTextToString[oracle.FailedStatusText])
+	for _, event := range res.Events {
+		for _, attribute := range event.Attributes {
+			value := string(attribute.Value)
+			if string(attribute.Key) == "status" {
+				require.Equal(t, value, oracle.StatusTextToString[oracle.FailedStatusText])
+			}
+		}
+	}
 	receiverAddress, err := sdk.AccAddressFromBech32(types.TestAddress)
 	require.NoError(t, err)
 	receiver1Coins := bankKeeper.GetCoins(ctx, receiverAddress)

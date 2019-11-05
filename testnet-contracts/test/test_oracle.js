@@ -13,11 +13,17 @@ require("chai")
   .should();
 
 contract("Oracle", function(accounts) {
+  // System operator
   const operator = accounts[0];
 
+  // Initial validator accounts
   const userOne = accounts[1];
   const userTwo = accounts[2];
   const userThree = accounts[3];
+
+  // Contract's enum ClaimType can be represented a sequence of integers
+  const CLAIM_TYPE_BURN = 0;
+  const CLAIM_TYPE_LOCK = 1;
 
   describe("Oracle smart contract deployment", function() {
     beforeEach(async function() {
@@ -54,11 +60,10 @@ contract("Oracle", function(accounts) {
 
   describe("Creation of oracle claims", function() {
     beforeEach(async function() {
-      this.bridgeClaimID = 1;
+      this.prophecyID = 1;
       this.cosmosSender = web3.utils.utf8ToHex(
         "985cfkop78sru7gfud4wce83kuc9rmw89rqtzmy"
       );
-      this.nonce = 17;
       this.ethereumReceiver = userOne;
       this.tokenAddress = "0x0000000000000000000000000000000000000000";
       this.symbol = "TEST";
@@ -66,9 +71,11 @@ contract("Oracle", function(accounts) {
 
       // Create hash using Solidity's Sha3 hashing function
       this.message = web3.utils.soliditySha3(
-        { t: "uint256", v: this.bridgeClaimID },
+        { t: "uint256", v: this.prophecyID },
         { t: "bytes", v: this.cosmosSender },
-        { t: "uint256", v: this.nonce }
+        { t: "address payable", v: this.ethereumReceiver },
+        { t: "address", v: this.tokenAddress },
+        { t: "uint256", v: this.amount }
       );
 
       // Deploy Valset contract
@@ -107,9 +114,9 @@ contract("Oracle", function(accounts) {
         from: operator
       });
 
-      // Submit a new bridge claim to the CosmosBridge to make oracle claims upon
-      await this.cosmosBridge.newBridgeClaim(
-        this.nonce,
+      // Submit a new prophecy claim to the CosmosBridge to make oracle claims upon
+      await this.cosmosBridge.newProphecyClaim(
+        CLAIM_TYPE_LOCK,
         this.cosmosSender,
         this.ethereumReceiver,
         this.tokenAddress,
@@ -121,15 +128,18 @@ contract("Oracle", function(accounts) {
       ).should.be.fulfilled;
     });
 
-    it("should not allow oracle claims upon inactive bridge claims", async function() {
-      const inactiveBridgeClaimID = this.bridgeClaimID + 5;
+    it("should not allow oracle claims upon inactive prophecy claims", async function() {
+      const inactiveBridgeClaimID = this.prophecyID + 50;
 
       // Create hash using Solidity's Sha3 hashing function
       const inactiveBridgeClaimMessage = web3.utils.soliditySha3(
         { t: "uint256", v: inactiveBridgeClaimID },
         { t: "bytes", v: this.cosmosSender },
-        { t: "uint256", v: this.nonce }
+        { t: "address payable", v: this.ethereumReceiver },
+        { t: "address", v: this.tokenAddress },
+        { t: "uint256", v: this.amount }
       );
+
       // Generate signature from userOne (validator)
       const signature = fixSignature(
         await web3.eth.sign(inactiveBridgeClaimMessage, userOne)
@@ -155,7 +165,7 @@ contract("Oracle", function(accounts) {
 
       await this.oracle
         .newOracleClaim(
-          this.bridgeClaimID,
+          this.prophecyID,
           toEthSignedMessageHash(this.message),
           signature,
           {
@@ -169,7 +179,9 @@ contract("Oracle", function(accounts) {
       const badMessage = web3.utils.soliditySha3(
         { t: "uint256", v: 20 },
         { t: "bytes", v: this.cosmosSender },
-        { t: "uint256", v: this.nonce }
+        { t: "address payable", v: this.ethereumReceiver },
+        { t: "address", v: this.tokenAddress },
+        { t: "uint256", v: this.amount }
       );
 
       // Generate signature from userTwo (validator) on bad message
@@ -178,7 +190,7 @@ contract("Oracle", function(accounts) {
       // userTwo submits the expected message with an invalid signature
       await this.oracle
         .newOracleClaim(
-          this.bridgeClaimID,
+          this.prophecyID,
           toEthSignedMessageHash(this.message),
           signature,
           {
@@ -197,7 +209,7 @@ contract("Oracle", function(accounts) {
       // userTwo submits the expected message with userOne's valid signature
       await this.oracle
         .newOracleClaim(
-          this.bridgeClaimID,
+          this.prophecyID,
           toEthSignedMessageHash(this.message),
           signature,
           {
@@ -213,8 +225,9 @@ contract("Oracle", function(accounts) {
         await web3.eth.sign(this.message, userOne)
       );
 
+      // Validator makes an oracle claim with their signature
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         signature,
         {
@@ -231,7 +244,7 @@ contract("Oracle", function(accounts) {
 
       // Validator makes the first oracle claim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         signature,
         {
@@ -242,7 +255,7 @@ contract("Oracle", function(accounts) {
       // Validator attempts to make a second oracle claim on the same bridge claim
       await this.oracle
         .newOracleClaim(
-          this.bridgeClaimID,
+          this.prophecyID,
           toEthSignedMessageHash(this.message),
           signature,
           {
@@ -260,7 +273,7 @@ contract("Oracle", function(accounts) {
 
       // Get the logs from a new OracleClaim
       const { logs } = await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         signature,
         {
@@ -270,9 +283,7 @@ contract("Oracle", function(accounts) {
       const event = logs.find(e => e.event === "LogNewOracleClaim");
 
       // Confirm that the event data is correct
-      Number(event.args._bridgeClaimID).should.be.bignumber.equal(
-        this.bridgeClaimID
-      );
+      Number(event.args._prophecyID).should.be.bignumber.equal(this.prophecyID);
       event.args._validatorAddress.should.be.equal(userOne);
       event.args._message.should.be.equal(toEthSignedMessageHash(this.message));
       event.args._signature.should.be.equal(signature);
@@ -281,20 +292,22 @@ contract("Oracle", function(accounts) {
 
   describe("Prophecy processing", function() {
     beforeEach(async function() {
-      this.bridgeClaimID = 1;
+      this.prophecyID = 1;
       this.cosmosSender = web3.utils.utf8ToHex(
         "985cfkop78sru7gfud4wce83kuc9rmw89rqtzmy"
       );
-      this.nonce = 17;
       this.ethereumReceiver = userOne;
+      this.tokenAddress = "0xbeddb076fa4df04859098a9873591dce3e9c404d";
       this.symbol = "TEST";
       this.amount = 100;
 
       // Create hash using Solidity's Sha3 hashing function
       this.message = web3.utils.soliditySha3(
-        { t: "uint256", v: this.bridgeClaimID },
+        { t: "uint256", v: this.prophecyID },
         { t: "bytes", v: this.cosmosSender },
-        { t: "uint256", v: this.nonce }
+        { t: "address payable", v: this.ethereumReceiver },
+        { t: "address", v: this.tokenAddress },
+        { t: "uint256", v: this.amount }
       );
 
       // Deploy Valset contract
@@ -346,9 +359,9 @@ contract("Oracle", function(accounts) {
       const event = logs.find(e => e.event === "LogNewBridgeToken");
       this.tokenAddress = event.args._token;
 
-      // Submit a new bridge claim to the CosmosBridge to make oracle claims upon
-      await this.cosmosBridge.newBridgeClaim(
-        this.nonce,
+      // Submit a new prophecy claim to the CosmosBridge to make oracle claims upon
+      await this.cosmosBridge.newProphecyClaim(
+        CLAIM_TYPE_LOCK,
         this.cosmosSender,
         this.ethereumReceiver,
         this.tokenAddress,
@@ -374,7 +387,7 @@ contract("Oracle", function(accounts) {
     it("should not process the prophecy if signed power does not pass the required threshold power", async function() {
       // Validator userOne makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userOneSignature,
         {
@@ -383,14 +396,14 @@ contract("Oracle", function(accounts) {
       );
 
       await this.oracle
-        .processProphecyClaim(this.bridgeClaimID)
+        .processBridgeProphecy(this.prophecyID)
         .should.be.rejectedWith(EVMRevert);
     });
 
     it("should allow for the processing of prophecies", async function() {
       // Validator userOne makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userOneSignature,
         {
@@ -399,7 +412,7 @@ contract("Oracle", function(accounts) {
       );
       // Validator userTwo makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userTwoSignature,
         {
@@ -408,7 +421,7 @@ contract("Oracle", function(accounts) {
       );
       // Validator userThree makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userThreeSignature,
         {
@@ -416,15 +429,15 @@ contract("Oracle", function(accounts) {
         }
       );
 
-      await this.oracle.processProphecyClaim(
-        this.bridgeClaimID
+      await this.oracle.processBridgeProphecy(
+        this.prophecyID
       ).should.be.fulfilled;
     });
 
     it("should allow non-unanimous consensus if signed power passes threshold", async function() {
       // Validator userOne makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userOneSignature,
         {
@@ -433,7 +446,7 @@ contract("Oracle", function(accounts) {
       );
       // Validator userThree makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userThreeSignature,
         {
@@ -449,15 +462,15 @@ contract("Oracle", function(accounts) {
       signedPowerWeighted.should.be.bignumber.greaterThan(totalPowerWeighted);
 
       // Process prophecy should be fulfilled
-      await this.oracle.processProphecyClaim(
-        this.bridgeClaimID
+      await this.oracle.processBridgeProphecy(
+        this.prophecyID
       ).should.be.fulfilled;
     });
 
     it("should not allow a prophecy to be processed twice", async function() {
       // Validator userOne makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userOneSignature,
         {
@@ -466,7 +479,7 @@ contract("Oracle", function(accounts) {
       );
       // Validator userThree makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userThreeSignature,
         {
@@ -475,13 +488,13 @@ contract("Oracle", function(accounts) {
       );
 
       // Process prophecy should be fulfilled
-      await this.oracle.processProphecyClaim(
-        this.bridgeClaimID
+      await this.oracle.processBridgeProphecy(
+        this.prophecyID
       ).should.be.fulfilled;
 
       // Attempt to process the same prophecy should be rejected
       await this.oracle
-        .processProphecyClaim(this.bridgeClaimID)
+        .processBridgeProphecy(this.prophecyID)
         .should.be.rejectedWith(EVMRevert);
     });
 
@@ -492,7 +505,7 @@ contract("Oracle", function(accounts) {
     it("should emit an event upon successful prophecy processing", async function() {
       // Validator userOne makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userOneSignature,
         {
@@ -501,7 +514,7 @@ contract("Oracle", function(accounts) {
       );
       // Validator userTwo makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userTwoSignature,
         {
@@ -510,7 +523,7 @@ contract("Oracle", function(accounts) {
       );
       // Validator userThree makes a valid OracleClaim
       await this.oracle.newOracleClaim(
-        this.bridgeClaimID,
+        this.prophecyID,
         toEthSignedMessageHash(this.message),
         this.userThreeSignature,
         {
@@ -520,17 +533,15 @@ contract("Oracle", function(accounts) {
 
       const submitter = accounts[7];
 
-      const { logs } = await this.oracle.processProphecyClaim(
-        this.bridgeClaimID,
+      const { logs } = await this.oracle.processBridgeProphecy(
+        this.prophecyID,
         {
           from: submitter
         }
       );
 
       const event = logs.find(e => e.event === "LogProphecyProcessed");
-      Number(event.args._cosmosBridgeClaimId).should.be.bignumber.equal(
-        this.bridgeClaimID
-      );
+      Number(event.args._prophecyID).should.be.bignumber.equal(this.prophecyID);
       Number(event.args._weightedSignedPower).should.be.bignumber.equal(
         this.totalPower * 3
       );
