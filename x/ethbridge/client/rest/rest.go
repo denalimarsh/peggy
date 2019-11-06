@@ -50,7 +50,7 @@ type burnEthReq struct {
 // RegisterRoutes - Central function to define routes that get registered by the main application
 func RegisterRESTRoutes(cliCtx context.CLIContext, r *mux.Router, storeName string) {
 	r.HandleFunc(fmt.Sprintf("/%s/prophecies", storeName), createClaimHandler(cliCtx)).Methods("POST")
-	r.HandleFunc(fmt.Sprintf("/%s/prophecies/{%s}/{%s}/{%s}/{%s}/{%s}/{%s}", storeName, restEthereumChainID, restBridgeContract, restNonce, restSymbol, restTokenContract, restEthereumSender), getProphecyHandler(cliCtx, storeName)).Methods("GET")
+	r.HandleFunc(fmt.Sprintf("/%s/prophecies/{%s}/{%s}", storeName, restNonce, restEthereumSender), getProphecyHandler(cliCtx, storeName)).Methods("GET")
 	r.HandleFunc(fmt.Sprintf("/%s/burn", storeName), burnHandler(cliCtx)).Methods("POST")
 }
 

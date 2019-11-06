@@ -2,6 +2,7 @@ package ethbridge
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/cosmos/peggy/x/ethbridge/types"
 	"github.com/cosmos/peggy/x/oracle"
@@ -95,6 +96,7 @@ func handleMsgBurn(ctx sdk.Context, cdc *codec.Codec,
 	if account == nil {
 		return sdk.ErrInvalidAddress(msg.CosmosSender.String()).Result()
 	}
+	sequenceNumber := account.GetSequence()
 	err := supplyKeeper.SendCoinsFromAccountToModule(ctx, msg.CosmosSender, ModuleName, msg.Amount)
 	if err != nil {
 		return err.Result()
@@ -114,6 +116,7 @@ func handleMsgBurn(ctx sdk.Context, cdc *codec.Codec,
 			types.EventTypeBurn,
 			sdk.NewAttribute(types.AttributeKeyCosmosSender, msg.CosmosSender.String()),
 			sdk.NewAttribute(types.AttributeKeyEthereumReceiver, msg.EthereumReceiver.String()),
+			sdk.NewAttribute(types.AttributeKeyNonce, strconv.FormatUint(sequenceNumber, 10)),
 			sdk.NewAttribute(sdk.AttributeKeyAmount, msg.Amount.String()),
 		),
 	})
