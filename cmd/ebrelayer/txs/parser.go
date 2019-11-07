@@ -130,17 +130,16 @@ func ProphecyClaimToSignedOracleClaim(
 	// Set up new OracleClaim struct
 	oracleClaim := OracleClaim{}
 
-	sender, _ := LoadSender()
-
 	// Generate a hashed claim message which contains ProphecyClaim's data
 	fmt.Println("Generating unique message for ProphecyClaim", event.ProphecyID)
 	message := GenerateClaimMessage(event)
 
-	fmt.Println("Validator addr:", sender.Hex())
+	// Prepare the message (required for signature verification on contract)
+	prefixedHashedMsg := PrepareMsgForSigning(message.Hex())
 
 	// Sign the message using the validator's private key
 	fmt.Println("Signing message...")
-	signature, err := SignClaim(message.Hex(), key)
+	signature, err := SignClaim(prefixedHashedMsg, key)
 	if err != nil {
 		return oracleClaim, err
 	}
@@ -148,7 +147,6 @@ func ProphecyClaimToSignedOracleClaim(
 
 	// Package the ProphecyID, Message, and Signature into an OracleClaim
 	oracleClaim.ProphecyID = event.ProphecyID
-	// TODO: Convert this back to []byte
 	oracleClaim.Message = message.Hex()
 	oracleClaim.Signature = signature
 

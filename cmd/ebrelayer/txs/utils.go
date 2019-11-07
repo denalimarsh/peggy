@@ -20,69 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
-// GenerateClaimMessage : Generates a hased message containing a ProphecyClaim event's data
-func GenerateClaimMessage(event events.NewProphecyClaimEvent) common.Hash {
-	// Cast event field values to byte[]
-	prophecyID := event.ProphecyID.Bytes()
-	sender := event.CosmosSender
-	recipient := []byte(event.EthereumReceiver.Hex())
-	token := []byte(event.TokenAddress.Hex())
-	amount := event.Amount.Bytes()
-	validator := []byte(event.ValidatorAddress.Hex())
-
-	// Generate hash using ProphecyClaim data
-	return crypto.Keccak256Hash(prophecyID, sender, recipient, token, amount, validator)
-	// return solsha3.SoliditySHA3WithPrefix(prophecyID, sender, recipient, token, amount, validator)
-}
-
-// SignClaim : Signs hashed message with validator's private key
-func SignClaim(msg string, key *ecdsa.PrivateKey) ([]byte, error) {
-	// Turn the message into a 32-byte hash
-	hash := solsha3.SoliditySHA3(solsha3.String(msg))
-
-	// Prefix and then hash to mimic behavior of eth_sign
-	prefixed := solsha3.SoliditySHA3(solsha3.String("\x19Ethereum Signed Message:\n32"), solsha3.Bytes32(hash))
-
-	sig, err := secp256k1.Sign(prefixed, math.PaddedBigBytes(key.D, 32))
-	if err != nil {
-		panic(err)
-	}
-
-	signature := hexutil.Bytes(sig)
-
-	return signature, nil
-}
-
-// GetSymbolAmountFromCoin : Parse (symbol, amount) from coin string
-func GetSymbolAmountFromCoin(coin string) (string, *big.Int) {
-	coinRune := []rune(coin)
-	amount := new(big.Int)
-
-	var symbol string
-
-	// Set up regex
-	isLetter, err := regexp.Compile(`[a-z]`)
-	if err != nil {
-		log.Fatal("Regex compilation error:", err)
-	}
-
-	// Iterate over each rune in the coin string
-	for i, char := range coinRune {
-		// Regex will match first letter [a-z] (lowercase)
-		matched := isLetter.MatchString(string(char))
-
-		// On first match, split the coin into (amount, symbol)
-		if matched {
-			amount, _ = amount.SetString(string(coinRune[0:i]), 10)
-			symbol = string(coinRune[i:])
-
-			break
-		}
-	}
-
-	return symbol, amount
-}
-
 // LoadPrivateKey : loads the validator's private key from environment variables
 func LoadPrivateKey() (key *ecdsa.PrivateKey, err error) {
 	// Load config file containing environment variables
@@ -125,6 +62,40 @@ func LoadSender() (address common.Address, err error) {
 	return fromAddress, nil
 }
 
+// GenerateClaimMessage : Generates a hased message containing a ProphecyClaim event's data
+func GenerateClaimMessage(event events.NewProphecyClaimEvent) common.Hash {
+	// Cast event field values to byte[]
+	prophecyID := event.ProphecyID.Bytes()
+	sender := event.CosmosSender
+	recipient := []byte(event.EthereumReceiver.Hex())
+	token := []byte(event.TokenAddress.Hex())
+	amount := event.Amount.Bytes()
+	validator := []byte(event.ValidatorAddress.Hex())
+
+	// Generate claim message using ProphecyClaim data
+	return crypto.Keccak256Hash(prophecyID, sender, recipient, token, amount, validator)
+}
+
+// PrepareMsgForSigning : prefixes a message for verification by a Smart Contract
+func PrepareMsgForSigning(msg string) []byte {
+	// Turn the message into a 32-byte hash
+	hashedMsg := solsha3.SoliditySHA3(solsha3.String(msg))
+
+	// Prefix and then hash to mimic behavior of eth_sign
+	return solsha3.SoliditySHA3(solsha3.String("\x19Ethereum Signed Message:\n32"), solsha3.Bytes32(hashedMsg))
+}
+
+// SignClaim : Signs the prepared message with validator's private key
+func SignClaim(msg []byte, key *ecdsa.PrivateKey) ([]byte, error) {
+	// Sign the message
+	sig, err := secp256k1.Sign(msg, math.PaddedBigBytes(key.D, 32))
+	if err != nil {
+		panic(err)
+	}
+
+	return sig, nil
+}
+
 // SigRSV : utility function which breaks a signature down into [R, S, V] components
 func SigRSV(isig interface{}) ([32]byte, [32]byte, uint8) {
 	var sig []byte
@@ -147,4 +118,34 @@ func SigRSV(isig interface{}) ([32]byte, [32]byte, uint8) {
 	V := uint8(vI + 27)
 
 	return R, S, V
+}
+
+// GetSymbolAmountFromCoin : Parse (symbol, amount) from coin string
+func GetSymbolAmountFromCoin(coin string) (string, *big.Int) {
+	coinRune := []rune(coin)
+	amount := new(big.Int)
+
+	var symbol string
+
+	// Set up regex
+	isLetter, err := regexp.Compile(`[a-z]`)
+	if err != nil {
+		log.Fatal("Regex compilation error:", err)
+	}
+
+	// Iterate over each rune in the coin string
+	for i, char := range coinRune {
+		// Regex will match first letter [a-z] (lowercase)
+		matched := isLetter.MatchString(string(char))
+
+		// On first match, split the coin into (amount, symbol)
+		if matched {
+			amount, _ = amount.SetString(string(coinRune[0:i]), 10)
+			symbol = string(coinRune[i:])
+
+			break
+		}
+	}
+
+	return symbol, amount
 }
