@@ -1,5 +1,6 @@
 pragma solidity ^0.5.0;
 
+import "./IBridgeBank.sol";
 import "./CosmosBank.sol";
 import "./EthereumBank.sol";
 import "../Oracle.sol";
@@ -14,7 +15,7 @@ import "../CosmosBridge.sol";
  *      based on Ethereum.
  **/
 
-contract BridgeBank is CosmosBank, EthereumBank {
+contract BridgeBank is IBridgeBank, CosmosBank, EthereumBank {
 
     using SafeMath for uint256;
     
@@ -76,7 +77,7 @@ contract BridgeBank is CosmosBank, EthereumBank {
     * @dev: Fallback function allows operator to send funds to the bank directly
     *       This feature is used for testing and is available at the operator's own risk.
     */
-    function() external payable onlyOperator {}
+    function() external payable onlyOperator() {}
 
     /*
     * @dev: Creates a new BridgeToken
@@ -85,9 +86,9 @@ contract BridgeBank is CosmosBank, EthereumBank {
     * @return: The new BridgeToken contract's address
     */
     function createNewBridgeToken(
-        string memory _symbol
+        string calldata _symbol
     )
-        public
+        external
         onlyOperator
         returns(address)
     {
@@ -104,13 +105,13 @@ contract BridgeBank is CosmosBank, EthereumBank {
      * @param _amount: number of comsos tokens to be minted
      */
      function mintBridgeTokens(
-        bytes memory _cosmosSender,
+        bytes calldata _cosmosSender,
         address payable _intendedRecipient,
         address _bridgeTokenAddress,
-        string memory _symbol,
+        string calldata _symbol,
         uint256 _amount
     )
-        public
+        external
         onlyCosmosBridge
     {
         return mintNewBridgeTokens(
@@ -130,11 +131,11 @@ contract BridgeBank is CosmosBank, EthereumBank {
     * @param _amount: value of deposit
     */
     function lock(
-        bytes memory _recipient,
+        bytes calldata _recipient,
         address _token,
         uint256 _amount
     )
-        public
+        external
         availableNonce()
         payable
     {
@@ -183,10 +184,10 @@ contract BridgeBank is CosmosBank, EthereumBank {
      function unlock(
         address payable _recipient,
         address _token,
-        string memory _symbol,
+        string calldata _symbol,
         uint256 _amount
     )
-        public
+        external
         onlyCosmosBridge
         hasLockedFunds(
             _token,
@@ -214,7 +215,7 @@ contract BridgeBank is CosmosBank, EthereumBank {
     function getCosmosDepositStatus(
         bytes32 _id
     )
-        public
+        external
         view
         returns(bool)
     {
@@ -234,7 +235,7 @@ contract BridgeBank is CosmosBank, EthereumBank {
     function viewCosmosDeposit(
         bytes32 _id
     )
-        public
+        external
         view
         returns(bytes memory, address payable, address, uint256)
     {
