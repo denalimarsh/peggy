@@ -11,6 +11,7 @@ package relayer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"log"
 	"math/big"
@@ -77,6 +78,12 @@ func InitEthereumRelayer(
 		log.Fatal(err)
 	}
 
+	// TODO: Load validator's private key in main.go
+	key, err := txs.LoadPrivateKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// We need the target address in bytes[] for the query
 	query := ethereum.FilterQuery{
 		Addresses: []common.Address{targetAddress},
@@ -112,7 +119,7 @@ func InitEthereumRelayer(
 						log.Fatal(err)
 					}
 				case events.LogNewProphecyClaim.String():
-					err := handleLogNewProphecyClaimEvent(contractABI, eventName, vLog, provider, contractAddress)
+					err := handleLogNewProphecyClaimEvent(contractABI, eventName, vLog, provider, contractAddress, key)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -164,18 +171,17 @@ func handleLogNewProphecyClaimEvent(
 	log types.Log,
 	provider string,
 	contractAddress common.Address,
+	key *ecdsa.PrivateKey,
 ) error {
 	// Unpack the LogNewProphecyClaim event using its unique event signature from the contract's ABI
 	event := events.UnpackLogNewProphecyClaim(contractABI, eventName, log.Data)
 
 	// Parse ProphecyClaim's data into an OracleClaim
-	oracleClaim := txs.ProphecyClaimToSignedOracleClaim(event)
-
-	// Initiate the relay
-	err := txs.RelayOracleClaimToEthereum(provider, contractAddress, events.LogNewProphecyClaim, oracleClaim)
+	oracleClaim, err := txs.ProphecyClaimToSignedOracleClaim(event, key)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	// Initiate the relay
+	return txs.RelayOracleClaimToEthereum(provider, contractAddress, events.LogNewProphecyClaim, oracleClaim, key)
 }

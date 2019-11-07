@@ -10,19 +10,23 @@ package txs
 // --------------------------------------------------------
 
 import (
+	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"log"
 	"math/big"
-	"regexp"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
+	tmCommon "github.com/tendermint/tendermint/libs/common"
 
 	"github.com/cosmos/peggy/cmd/ebrelayer/events"
 	"github.com/cosmos/peggy/cmd/ebrelayer/utils"
 	ethbridgeTypes "github.com/cosmos/peggy/x/ethbridge/types"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/ethereum/go-ethereum/common"
-	tmCommon "github.com/tendermint/tendermint/libs/common"
 )
 
 // LogLockToEthBridgeClaim : parses and packages a LockEvent struct with a validator address in an EthBridgeClaim msg
@@ -103,7 +107,7 @@ func BurnLockEventToCosmosMsg(claimType events.Event, attributes []tmCommon.KVPa
 			ethereumReceiver = common.HexToAddress(val)
 		case events.Coin.String():
 			// Parse symbol and amount from coin string
-			symbol, amount = getSymbolAmountFromCoin(val)
+			symbol, amount = GetSymbolAmountFromCoin(val)
 		case events.TokenContractAddress.String():
 			// Confirm token contract address is valid Ethereum address
 			if !common.IsHexAddress(val) {
@@ -119,29 +123,36 @@ func BurnLockEventToCosmosMsg(claimType events.Event, attributes []tmCommon.KVPa
 }
 
 // ProphecyClaimToSignedOracleClaim : packages and signs a prophecy claim's data, returning a new oracle claim
-func ProphecyClaimToSignedOracleClaim(event events.NewProphecyClaimEvent) OracleClaim {
-	// Parse relevant data into type byte[]
-	prophecyID := event.ProphecyID.Bytes()
-	sender := event.CosmosSender
-	recipient := []byte(event.EthereumReceiver.Hex())
-	token := []byte(event.TokenAddress.Hex())
-	amount := event.Amount.Bytes()
-	validator := []byte(event.ValidatorAddress.Hex())
+func ProphecyClaimToSignedOracleClaim(
+	event events.NewProphecyClaimEvent,
+	key *ecdsa.PrivateKey,
+) (OracleClaim, error) {
+	// Set up new OracleClaim struct
+	oracleClaim := OracleClaim{}
 
-	// Generate rawHash using ProphecyClaim data
-	hash := GenerateClaimHash(prophecyID, sender, recipient, token, amount, validator)
+	sender, _ := LoadSender()
 
-	// Sign the hash using the active validator's private key
-	signature := SignClaim(hash)
+	// Generate a hashed claim message which contains ProphecyClaim's data
+	fmt.Println("Generating unique message for ProphecyClaim", event.ProphecyID)
+	message := GenerateClaimMessage(event)
+
+	fmt.Println("Validator addr:", sender.Hex())
+
+	// Sign the message using the validator's private key
+	fmt.Println("Signing message...")
+	signature, err := SignClaim(message.Hex(), key)
+	if err != nil {
+		return oracleClaim, err
+	}
+	fmt.Println("Signature generated:", hexutil.Encode(signature))
 
 	// Package the ProphecyID, Message, and Signature into an OracleClaim
-	oracleClaim := OracleClaim{
-		ProphecyID: event.ProphecyID,
-		Message:    hash,
-		Signature:  signature,
-	}
+	oracleClaim.ProphecyID = event.ProphecyID
+	// TODO: Convert this back to []byte
+	oracleClaim.Message = message.Hex()
+	oracleClaim.Signature = signature
 
-	return oracleClaim
+	return oracleClaim, nil
 }
 
 // CosmosMsgToProphecyClaim : parses event data from a CosmosMsg, packaging it as a ProphecyClaim
@@ -163,34 +174,4 @@ func CosmosMsgToProphecyClaim(event events.CosmosMsg) ProphecyClaim {
 	}
 
 	return prophecyClaim
-}
-
-// getSymbolAmountFromCoin : Parse (symbol, amount) from coin string
-func getSymbolAmountFromCoin(coin string) (string, *big.Int) {
-	coinRune := []rune(coin)
-	amount := new(big.Int)
-
-	var symbol string
-
-	// Set up regex
-	isLetter, err := regexp.Compile(`[a-z]`)
-	if err != nil {
-		log.Fatal("Regex compilation error:", err)
-	}
-
-	// Iterate over each rune in the coin string
-	for i, char := range coinRune {
-		// Regex will match first letter [a-z] (lowercase)
-		matched := isLetter.MatchString(string(char))
-
-		// On first match, split the coin into (amount, symbol)
-		if matched {
-			amount, _ = amount.SetString(string(coinRune[0:i]), 10)
-			symbol = string(coinRune[i:])
-
-			break
-		}
-	}
-
-	return symbol, amount
 }

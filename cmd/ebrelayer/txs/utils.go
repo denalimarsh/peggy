@@ -1,15 +1,15 @@
 package txs
 
 import (
-	"bytes"
 	"crypto/ecdsa"
-	"encoding/hex"
-	"fmt"
 	"log"
+	"math/big"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/cosmos/peggy/cmd/ebrelayer/events"
 	"github.com/joho/godotenv"
 	solsha3 "github.com/miguelmota/go-solidity-sha3"
 
@@ -20,73 +20,67 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
-// GenerateClaimHash : Generates an OracleClaim hash from a ProphecyClaim's event data
-func GenerateClaimHash(prophecyID []byte, sender []byte, recipient []byte, token []byte, amount []byte, validator []byte) string {
-	// Generate a hash containing the information
-	rawHash := crypto.Keccak256Hash(prophecyID, sender, recipient, token, amount, validator)
+// GenerateClaimMessage : Generates a hased message containing a ProphecyClaim event's data
+func GenerateClaimMessage(event events.NewProphecyClaimEvent) common.Hash {
+	// Cast event field values to byte[]
+	prophecyID := event.ProphecyID.Bytes()
+	sender := event.CosmosSender
+	recipient := []byte(event.EthereumReceiver.Hex())
+	token := []byte(event.TokenAddress.Hex())
+	amount := event.Amount.Bytes()
+	validator := []byte(event.ValidatorAddress.Hex())
 
-	// Cast hash to hex encoded string
-	return rawHash.Hex()
+	// Generate hash using ProphecyClaim data
+	return crypto.Keccak256Hash(prophecyID, sender, recipient, token, amount, validator)
+	// return solsha3.SoliditySHA3WithPrefix(prophecyID, sender, recipient, token, amount, validator)
 }
 
 // SignClaim : Signs hashed message with validator's private key
-func SignClaim(hash string) []byte {
-	key, err := LoadPrivateKey()
-	if err != nil {
-		log.Fatal(err)
-	}
-	signer := hex.EncodeToString(crypto.PubkeyToAddress(key.PublicKey).Bytes())
-	fmt.Println("Using validator account:", signer)
-	fmt.Println("Attempting to sign message:", hash)
-
-	rawSignature, _ := prefixMessage(hash, key)
-
-	signature := hexutil.Bytes(rawSignature)
-	fmt.Println("Success! Signature:", signature)
-
-	return signature
-}
-
-func prefixMessage(message string, key *ecdsa.PrivateKey) ([]byte, []byte) {
+func SignClaim(msg string, key *ecdsa.PrivateKey) ([]byte, error) {
 	// Turn the message into a 32-byte hash
-	hash := solsha3.SoliditySHA3(solsha3.String(message))
+	hash := solsha3.SoliditySHA3(solsha3.String(msg))
+
 	// Prefix and then hash to mimic behavior of eth_sign
 	prefixed := solsha3.SoliditySHA3(solsha3.String("\x19Ethereum Signed Message:\n32"), solsha3.Bytes32(hash))
-	sig, err := secp256k1.Sign(prefixed, math.PaddedBigBytes(key.D, 32))
 
+	sig, err := secp256k1.Sign(prefixed, math.PaddedBigBytes(key.D, 32))
 	if err != nil {
 		panic(err)
 	}
 
-	return sig, prefixed
+	signature := hexutil.Bytes(sig)
+
+	return signature, nil
 }
 
-// verifySignature: utility function for signature verification
-func verifySignature(hash common.Hash, signature []byte) {
-	// Load private key
-	privateKey, err := LoadPrivateKey()
+// GetSymbolAmountFromCoin : Parse (symbol, amount) from coin string
+func GetSymbolAmountFromCoin(coin string) (string, *big.Int) {
+	coinRune := []rune(coin)
+	amount := new(big.Int)
+
+	var symbol string
+
+	// Set up regex
+	isLetter, err := regexp.Compile(`[a-z]`)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Regex compilation error:", err)
 	}
 
-	// Validator's public key
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		log.Fatal("error casting public key to ECDSA")
-	}
-	publicKeyBytes := crypto.FromECDSAPub(publicKeyECDSA)
+	// Iterate over each rune in the coin string
+	for i, char := range coinRune {
+		// Regex will match first letter [a-z] (lowercase)
+		matched := isLetter.MatchString(string(char))
 
-	// Public key of validator which signed this message
-	sigPublicKeyECDSA, err := crypto.SigToPub(hash.Bytes(), signature)
-	if err != nil {
-		log.Fatal(err)
-	}
-	sigPublicKeyBytes := crypto.FromECDSAPub(sigPublicKeyECDSA)
+		// On first match, split the coin into (amount, symbol)
+		if matched {
+			amount, _ = amount.SetString(string(coinRune[0:i]), 10)
+			symbol = string(coinRune[i:])
 
-	// Compare
-	matches := bytes.Equal(sigPublicKeyBytes, publicKeyBytes)
-	log.Println(matches)
+			break
+		}
+	}
+
+	return symbol, amount
 }
 
 // LoadPrivateKey : loads the validator's private key from environment variables
