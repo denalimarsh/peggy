@@ -1,28 +1,32 @@
 package app
 
 import (
+	"io"
 	"os"
 
 	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/libs/log"
-	tmOs "github.com/tendermint/tendermint/libs/os"
+	tmos "github.com/tendermint/tendermint/libs/os"
 	dbm "github.com/tendermint/tm-db"
 
-	"github.com/cosmos/peggy/x/ethbridge"
-	"github.com/cosmos/peggy/x/oracle"
-
-	bam "github.com/cosmos/cosmos-sdk/baseapp"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/codec"
+	codecstd "github.com/cosmos/cosmos-sdk/codec/std"
+	"github.com/cosmos/cosmos-sdk/simapp"
+	"github.com/cosmos/cosmos-sdk/std"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/version"
 	"github.com/cosmos/cosmos-sdk/x/auth"
-	"github.com/cosmos/cosmos-sdk/x/auth/ante"
-	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
 	"github.com/cosmos/cosmos-sdk/x/bank"
+	distr "github.com/cosmos/cosmos-sdk/x/distribution"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	"github.com/cosmos/cosmos-sdk/x/params"
+	"github.com/cosmos/cosmos-sdk/x/slashing"
 	"github.com/cosmos/cosmos-sdk/x/staking"
+
+	"github.com/cosmos/peggy/x/ethbridge"
+	"github.com/cosmos/peggy/x/oracle"
 )
 
 const (
@@ -44,6 +48,7 @@ var (
 		genutil.AppModuleBasic{},
 		bank.AppModuleBasic{},
 		staking.AppModuleBasic{},
+		distr.AppModuleBasic{},
 		params.AppModuleBasic{},
 		bank.AppModuleBasic{},
 		oracle.AppModuleBasic{},
@@ -52,43 +57,52 @@ var (
 
 	// module account permissions
 	maccPerms = map[string][]string{
-		auth.FeeCollectorName: nil,
-		// staking.BondedPoolName:    {supply.Burner, supply.Staking},
-		// staking.NotBondedPoolName: {supply.Burner, supply.Staking},
-		// ethbridge.ModuleName:      {supply.Burner, supply.Minter},
+		auth.FeeCollectorName:     nil,
+		distr.ModuleName:          nil,
+		staking.BondedPoolName:    {auth.Burner, auth.Staking},
+		staking.NotBondedPoolName: {auth.Burner, auth.Staking},
+		ethbridge.ModuleName:      {auth.Burner, auth.Minter},
+	}
+
+	// module accounts that are allowed to receive tokens
+	allowedReceivingModAcc = map[string]bool{
+		distr.ModuleName: true,
 	}
 )
 
-// MakeCodec generates the necessary codecs for Amino
-func MakeCodec() *codec.Codec {
-	var cdc = codec.New()
-	ModuleBasics.RegisterCodec(cdc)
-	vesting.RegisterCodec(cdc)
-	sdk.RegisterCodec(cdc)
-	codec.RegisterCrypto(cdc)
-	return cdc
-}
+// TODO:
+// // MakeCodec generates the necessary codecs for Amino
+// func MakeCodec() *codec.Codec {
+// 	var cdc = codec.New()
+// 	ModuleBasics.RegisterCodec(cdc)
+// 	vesting.RegisterCodec(cdc)
+// 	sdk.RegisterCodec(cdc)
+// 	codec.RegisterCrypto(cdc)
+// 	return cdc
+// }
 
 // EthereumBridgeApp defines the Ethereum-Cosmos peg-zone application
 type EthereumBridgeApp struct {
-	*bam.BaseApp
+	*baseapp.BaseApp
 	cdc *codec.Codec
 
 	// keys to access the substores
 	keys  map[string]*sdk.KVStoreKey
 	tkeys map[string]*sdk.TransientStoreKey
 
-	// SDK keepers
-	// TODO: add governance keeper
-	AccountKeeper auth.AccountKeeper
-	BankKeeper    bank.Keeper
-	StakingKeeper staking.Keeper
-	// SupplyKeeper  supply.Keeper
-	ParamsKeeper params.Keeper
+	// subspaces
+	subspaces map[string]params.Subspace
 
-	// EthBridge keepers
-	BridgeKeeper ethbridge.Keeper
-	OracleKeeper oracle.Keeper
+	// keepers
+	// TODO: add governance keeper
+	accountKeeper   auth.AccountKeeper
+	bankKeeper      bank.Keeper
+	stakingKeeper   staking.Keeper
+	slashingKeeper  slashing.Keeper
+	distrKeeper     distr.Keeper
+	paramsKeeper    params.Keeper
+	ethbridgeKeeper ethbridge.Keeper
+	oracleKeeper    oracle.Keeper
 
 	// the module manager
 	mm *module.Manager
@@ -96,67 +110,96 @@ type EthereumBridgeApp struct {
 
 // NewEthereumBridgeApp is a constructor function for EthereumBridgeApp
 func NewEthereumBridgeApp(
-	logger log.Logger, db dbm.DB, loadLatest bool,
-	baseAppOptions ...func(*bam.BaseApp),
+	logger log.Logger, db dbm.DB, traceStore io.Writer, loadLatest bool,
+	baseAppOptions ...func(*baseapp.BaseApp),
 ) *EthereumBridgeApp {
+
 	// First define the top level codec that will be shared by the different modules
-	cdc := MakeCodec()
+	cdc := codecstd.MakeCodec(ModuleBasics)
+	appCodec := codecstd.NewAppCodec(cdc)
 
 	// BaseApp handles interactions with Tendermint through the ABCI protocol
-	bApp := bam.NewBaseApp(appName, logger, db, auth.DefaultTxDecoder(cdc))
+	bApp := baseapp.NewBaseApp(appName, logger, db, auth.DefaultTxDecoder(cdc), baseAppOptions...)
+	bApp.SetCommitMultiStoreTracer(traceStore)
 	bApp.SetAppVersion(version.Version)
 
 	keys := sdk.NewKVStoreKeys(
-		bam.MainStoreKey, auth.StoreKey, staking.StoreKey,
-		oracle.StoreKey, params.StoreKey, // supply.StoreKey,
+		auth.StoreKey, staking.StoreKey, distr.StoreKey,
+		oracle.StoreKey, params.StoreKey,
 	)
-	tkeys := sdk.NewTransientStoreKeys(staking.TStoreKey, params.TStoreKey)
+	tkeys := sdk.NewTransientStoreKeys(params.TStoreKey)
 
 	// Here you initialize your application with the store keys it requires
 	app := &EthereumBridgeApp{
-		BaseApp: bApp,
-		cdc:     cdc,
-		keys:    keys,
-		tkeys:   tkeys,
+		BaseApp:   bApp,
+		cdc:       cdc,
+		keys:      keys,
+		tkeys:     tkeys,
+		subspaces: make(map[string]params.Subspace),
 	}
 
 	// init params keeper and subspaces
-	app.ParamsKeeper = params.NewKeeper(app.cdc, keys[params.StoreKey], tkeys[params.TStoreKey])
+	app.paramsKeeper = params.NewKeeper(appCodec, keys[params.StoreKey], tkeys[params.TStoreKey])
+	app.subspaces[auth.ModuleName] = app.paramsKeeper.Subspace(auth.DefaultParamspace)
+	app.subspaces[bank.ModuleName] = app.paramsKeeper.Subspace(bank.DefaultParamspace)
+	app.subspaces[staking.ModuleName] = app.paramsKeeper.Subspace(staking.DefaultParamspace)
+	app.subspaces[distr.ModuleName] = app.paramsKeeper.Subspace(distr.DefaultParamspace)
 
-	authSubspace := app.ParamsKeeper.Subspace(auth.DefaultParamspace)
-	bankSubspace := app.ParamsKeeper.Subspace(bank.DefaultParamspace)
-	stakingSubspace := app.ParamsKeeper.Subspace(staking.DefaultParamspace)
+	// set the BaseApp's parameter store
+	bApp.SetParamStore(app.paramsKeeper.Subspace(baseapp.Paramspace).WithKeyTable(std.ConsensusParamsKeyTable()))
 
 	// add keepers
-	app.AccountKeeper = auth.NewAccountKeeper(app.cdc, keys[auth.StoreKey], authSubspace, auth.ProtoBaseAccount)
-	app.BankKeeper = bank.NewBaseKeeper(app.AccountKeeper, bankSubspace, app.ModuleAccountAddrs())
-	// app.SupplyKeeper = supply.NewKeeper(app.cdc, keys[supply.StoreKey], app.AccountKeeper, app.BankKeeper, maccPerms)
-	app.StakingKeeper = staking.NewKeeper(app.cdc, keys[staking.StoreKey],
-		app.BankKeeper, stakingSubspace)
-	app.OracleKeeper = oracle.NewKeeper(app.cdc, keys[oracle.StoreKey],
-		app.StakingKeeper, oracle.DefaultConsensusNeeded,
+	app.accountKeeper = auth.NewAccountKeeper(
+		appCodec, keys[auth.StoreKey], app.subspaces[auth.ModuleName], auth.ProtoBaseAccount, maccPerms,
 	)
-	app.BridgeKeeper = ethbridge.NewKeeper(app.cdc, app.BankKeeper, app.OracleKeeper)
+	app.bankKeeper = bank.NewBaseKeeper(
+		appCodec, keys[bank.StoreKey], app.accountKeeper, app.subspaces[bank.ModuleName], app.BlacklistedAccAddrs(),
+	)
+	stakingKeeper := staking.NewKeeper(
+		appCodec, keys[staking.StoreKey], app.accountKeeper, app.bankKeeper, app.subspaces[staking.ModuleName],
+	)
+	app.distrKeeper = distr.NewKeeper(
+		appCodec, keys[distr.StoreKey], app.subspaces[distr.ModuleName], app.accountKeeper, app.bankKeeper,
+		&stakingKeeper, auth.FeeCollectorName, app.ModuleAccountAddrs(),
+	)
+	app.slashingKeeper = slashing.NewKeeper(
+		appCodec, keys[slashing.StoreKey], &stakingKeeper, app.subspaces[slashing.ModuleName],
+	)
+	app.oracleKeeper = oracle.NewKeeper(
+		cdc, keys[oracle.StoreKey], &stakingKeeper, oracle.DefaultConsensusNeeded,
+	)
+	app.ethbridgeKeeper = ethbridge.NewKeeper(
+		cdc, keys[ethbridge.StoreKey], app.bankKeeper, app.oracleKeeper,
+	)
 
-	// NOTE: Any module instantiated in the module manager that is later modified
-	// must be passed by reference here.
+	// Set hooks
+	app.stakingKeeper = *stakingKeeper.SetHooks(
+		staking.NewMultiStakingHooks(app.distrKeeper.Hooks(), app.slashingKeeper.Hooks()),
+	)
+
 	app.mm = module.NewManager(
-		genutil.NewAppModule(app.AccountKeeper, app.StakingKeeper, app.BaseApp.DeliverTx),
-		auth.NewAppModule(app.AccountKeeper),
-		bank.NewAppModule(app.BankKeeper, app.AccountKeeper),
-		// supply.NewAppModule(app.SupplyKeeper, app.AccountKeeper),
-		staking.NewAppModule(app.StakingKeeper, app.AccountKeeper, app.BankKeeper),
-		oracle.NewAppModule(app.OracleKeeper),
-		ethbridge.NewAppModule(app.OracleKeeper, app.BankKeeper, app.AccountKeeper, app.BridgeKeeper, app.cdc),
+		genutil.NewAppModule(app.accountKeeper, app.stakingKeeper, app.BaseApp.DeliverTx),
+		auth.NewAppModule(appCodec, app.accountKeeper),
+		bank.NewAppModule(appCodec, app.bankKeeper, app.accountKeeper),
+		slashing.NewAppModule(appCodec, app.slashingKeeper, app.accountKeeper, app.bankKeeper, app.stakingKeeper),
+		distr.NewAppModule(appCodec, app.distrKeeper, app.accountKeeper, app.bankKeeper, app.stakingKeeper),
+		staking.NewAppModule(appCodec, app.stakingKeeper, app.accountKeeper, app.bankKeeper),
+		oracle.NewAppModule(appCodec, app.oracleKeeper),
+		ethbridge.NewAppModule(appCodec, app.oracleKeeper, app.bankKeeper, app.accountKeeper, app.ethbridgeKeeper),
+		params.NewAppModule(app.paramsKeeper),
 	)
 
+	// TODO: mint.ModuleName,
+	app.mm.SetOrderBeginBlockers(distr.ModuleName, slashing.ModuleName, staking.ModuleName)
 	app.mm.SetOrderEndBlockers(staking.ModuleName)
 
 	// NOTE: The genutils module must occur after staking so that pools are
 	// properly initialized with tokens from genesis accounts.
+	// TODO:  mint.ModuleName,
 	app.mm.SetOrderInitGenesis(
-		auth.ModuleName, staking.ModuleName, bank.ModuleName,
-		genutil.ModuleName, ethbridge.ModuleName, // supply.ModuleName,
+		auth.ModuleName, distr.ModuleName, slashing.ModuleName,
+		staking.ModuleName, bank.ModuleName, genutil.ModuleName,
+		ethbridge.ModuleName,
 	)
 
 	// TODO: add simulator support
@@ -170,25 +213,34 @@ func NewEthereumBridgeApp(
 	// initialize BaseApp
 	app.SetInitChainer(app.InitChainer)
 	app.SetBeginBlocker(app.BeginBlocker)
-	app.SetAnteHandler(ante.NewAnteHandler(app.AccountKeeper, app.BankKeeper, auth.DefaultSigVerificationGasConsumer))
+
+	// TODO: SET ANTE HANDLER INCLUDING IBCKEEPER
+	// app.SetAnteHandler(
+	// 	ante.NewAnteHandler(
+	// 		app.accountKeeper, app.bankKeeper,
+	// 		auth.DefaultSigVerificationGasConsumer,
+	// 	),
+	// )
 	app.SetEndBlocker(app.EndBlocker)
 
 	if loadLatest {
-		if err := app.LoadLatestVersion(app.keys[bam.MainStoreKey]); err != nil {
-			tmOs.Exit(err.Error())
+		if err := app.LoadLatestVersion(); err != nil {
+			tmos.Exit(err.Error())
 		}
 	}
+
+	// TODO: capabilityKeeper
+	// ctx := app.BaseApp.NewContext(true, abci.Header{})
+	// app.capabilityKeeper.InitializeAndSeal(ctx)
+
 	return app
 }
 
 // InitChainer application update at chain initialization
 func (app *EthereumBridgeApp) InitChainer(ctx sdk.Context, req abci.RequestInitChain) abci.ResponseInitChain {
-	var genesisState GenesisState
-	if err := app.cdc.UnmarshalJSON(req.AppStateBytes, &genesisState); err != nil {
-		panic(err)
-	}
-
-	return app.mm.InitGenesis(ctx, genesisState)
+	var genesisState simapp.GenesisState
+	app.cdc.MustUnmarshalJSON(req.AppStateBytes, &genesisState)
+	return app.mm.InitGenesis(ctx, app.cdc, genesisState)
 }
 
 // BeginBlocker application updates every begin block
@@ -203,18 +255,27 @@ func (app *EthereumBridgeApp) EndBlocker(ctx sdk.Context, req abci.RequestEndBlo
 
 // LoadHeight loads a particular height
 func (app *EthereumBridgeApp) LoadHeight(height int64) error {
-	return app.LoadVersion(height, app.keys[bam.MainStoreKey])
+	return app.LoadVersion(height)
 }
 
 // ModuleAccountAddrs returns all the app's module account addresses.
 func (app *EthereumBridgeApp) ModuleAccountAddrs() map[string]bool {
 	modAccAddrs := make(map[string]bool)
-	// TODO:
-	// for acc := range maccPerms {
-	// 	modAccAddrs[supply.NewModuleAddress(acc).String()] = true
-	// }
+	for acc := range maccPerms {
+		modAccAddrs[auth.NewModuleAddress(acc).String()] = true
+	}
 
 	return modAccAddrs
+}
+
+// BlacklistedAccAddrs returns all the app's module account addresses black listed for receiving tokens.
+func (app *EthereumBridgeApp) BlacklistedAccAddrs() map[string]bool {
+	blacklistedAddrs := make(map[string]bool)
+	for acc := range maccPerms {
+		blacklistedAddrs[auth.NewModuleAddress(acc).String()] = !allowedReceivingModAcc[acc]
+	}
+
+	return blacklistedAddrs
 }
 
 // Codec returns simapp's codec
