@@ -6,22 +6,27 @@ import (
 
 	"github.com/spf13/cobra"
 
+	codecstd "github.com/cosmos/cosmos-sdk/codec/std"
+	"github.com/cosmos/cosmos-sdk/server"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/bank"
+	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
+	"github.com/cosmos/cosmos-sdk/x/staking"
 	"github.com/tendermint/tendermint/libs/cli"
 	"github.com/tendermint/tendermint/libs/log"
 	tmtypes "github.com/tendermint/tendermint/types"
 	dbm "github.com/tendermint/tm-db"
 
 	"github.com/cosmos/peggy/app"
-
-	"github.com/cosmos/cosmos-sdk/server"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/x/auth"
-	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
-	"github.com/cosmos/cosmos-sdk/x/staking"
 )
 
+const flagInvCheckPeriod = "inv-check-period"
+
+var invCheckPeriod uint
+
 func main() {
-	cdc := app.MakeCodec()
+	cdc := codecstd.MakeCodec(app.ModuleBasics)
+	appCodec := codecstd.NewAppCodec(cdc)
 
 	// TODO: set custom bech32 prefixes for peggy
 	config := sdk.GetConfig()
@@ -40,13 +45,24 @@ func main() {
 	}
 
 	rootCmd.AddCommand(genutilcli.InitCmd(ctx, cdc, app.ModuleBasics, app.DefaultNodeHome))
-	rootCmd.AddCommand(genutilcli.CollectGenTxsCmd(ctx, cdc, auth.GenesisAccountIterator{}, app.DefaultNodeHome))
-	rootCmd.AddCommand(genutilcli.GenTxCmd(ctx, cdc, app.ModuleBasics, staking.AppModuleBasic{},
-		auth.GenesisAccountIterator{}, app.DefaultNodeHome, app.DefaultCLIHome))
+	rootCmd.AddCommand(genutilcli.CollectGenTxsCmd(ctx, cdc, bank.GenesisBalancesIterator{}, app.DefaultNodeHome))
+	rootCmd.AddCommand(
+		genutilcli.GenTxCmd(
+			ctx, cdc, app.ModuleBasics, staking.AppModuleBasic{},
+			bank.GenesisBalancesIterator{}, app.DefaultNodeHome, app.DefaultCLIHome,
+		),
+	)
 	rootCmd.AddCommand(genutilcli.ValidateGenesisCmd(ctx, cdc, app.ModuleBasics))
-	rootCmd.AddCommand(AddGenesisAccountCmd(ctx, cdc, app.DefaultNodeHome, app.DefaultCLIHome))
+	rootCmd.AddCommand(AddGenesisAccountCmd(ctx, cdc, appCodec, app.DefaultNodeHome, app.DefaultCLIHome))
 
-	server.AddCommands(ctx, cdc, rootCmd, newApp, exportAppStateAndTMValidators)
+	// TODO: testnet cmd
+	// rootCmd.AddCommand(flags.NewCompletionCmd(rootCmd, true))
+	// rootCmd.AddCommand(testnetCmd(ctx, cdc, app.ModuleBasics, bank.GenesisBalancesIterator{}))
+	// rootCmd.AddCommand(replayCmd())
+	// rootCmd.AddCommand(debug.Cmd(cdc))
+
+	// TODO:
+	// server.AddCommands(ctx, cdc, rootCmd, newApp, exportAppStateAndTMValidators)
 
 	// prepare and add flags
 	executor := cli.PrepareBaseCmd(rootCmd, "EB", app.DefaultNodeHome)
@@ -56,24 +72,38 @@ func main() {
 }
 
 // func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer) abci.Application {
+// 	var cache sdk.MultiStorePersistentCache
+
+// 	if viper.GetBool(server.FlagInterBlockCache) {
+// 		cache = store.NewCommitKVStoreCacheManager()
+// 	}
+
+// 	skipUpgradeHeights := make(map[int64]bool)
+// 	for _, h := range viper.GetIntSlice(server.FlagUnsafeSkipUpgrades) {
+// 		skipUpgradeHeights[int64(h)] = true
+// 	}
+
+// 	ctx := app.BaseApp.NewContext(true, abci.Header{})
+
 // 	return app.NewEthereumBridgeApp(
-// 		logger, db, true,
-// 		baseapp.SetMinGasPrices(viper.GetString(server.FlagMinGasPrices)),
-// 		baseapp.SetHaltHeight(uint64(viper.GetInt(server.FlagHaltHeight))),
+// 		logger, db, false, ctx,
 // 	)
 // }
 
 func exportAppStateAndTMValidators(
 	logger log.Logger, db dbm.DB, traceStore io.Writer, height int64, forZeroHeight bool, jailWhiteList []string,
-) (json.RawMessage, []tmtypes.GenesisValidator, error) {
+) (json.RawMessage, []tmtypes.GenesisValidator, error) { // TODO: *abci.ConsensusParams,
 
 	if height != -1 {
-		ebApp := app.NewEthereumBridgeApp(logger, db, false)
+		ebApp := app.NewEthereumBridgeApp(logger, db, traceStore, false)
+
+		// tzapp := app.NewEthereumBridgeApp(logger, db, traceStore, false, uint(1), map[int64]bool{}, "")
 		if err := ebApp.LoadHeight(height); err != nil {
 			return nil, nil, err
 		}
 		return ebApp.ExportAppStateAndValidators(forZeroHeight, jailWhiteList)
 	}
-	ebApp := app.NewEthereumBridgeApp(logger, db, true)
+
+	ebApp := app.NewEthereumBridgeApp(logger, db, traceStore, true)
 	return ebApp.ExportAppStateAndValidators(forZeroHeight, jailWhiteList)
 }
