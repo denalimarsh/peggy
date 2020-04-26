@@ -5,9 +5,7 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
-	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/libs/cli"
 	"github.com/tendermint/tendermint/libs/log"
 	tmtypes "github.com/tendermint/tendermint/types"
@@ -15,7 +13,6 @@ import (
 
 	"github.com/cosmos/peggy/app"
 
-	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/server"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/auth"
@@ -58,13 +55,13 @@ func main() {
 	}
 }
 
-func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer) abci.Application {
-	return app.NewEthereumBridgeApp(
-		logger, db, true,
-		baseapp.SetMinGasPrices(viper.GetString(server.FlagMinGasPrices)),
-		baseapp.SetHaltHeight(uint64(viper.GetInt(server.FlagHaltHeight))),
-	)
-}
+// func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer) abci.Application {
+// 	return app.NewEthereumBridgeApp(
+// 		logger, db, true,
+// 		baseapp.SetMinGasPrices(viper.GetString(server.FlagMinGasPrices)),
+// 		baseapp.SetHaltHeight(uint64(viper.GetInt(server.FlagHaltHeight))),
+// 	)
+// }
 
 func exportAppStateAndTMValidators(
 	logger log.Logger, db dbm.DB, traceStore io.Writer, height int64, forZeroHeight bool, jailWhiteList []string,

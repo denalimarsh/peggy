@@ -8,7 +8,7 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/types/rest"
-	"github.com/cosmos/cosmos-sdk/x/auth/client/utils"
+	utils "github.com/cosmos/cosmos-sdk/x/auth/client"
 
 	"github.com/gorilla/mux"
 

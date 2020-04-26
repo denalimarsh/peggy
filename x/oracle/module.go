@@ -34,12 +34,12 @@ func (AppModuleBasic) RegisterCodec(_ *codec.Codec) {}
 
 // DefaultGenesis returns default genesis state as raw bytes for the oracle
 // module.
-func (AppModuleBasic) DefaultGenesis() json.RawMessage {
+func (AppModuleBasic) DefaultGenesis(cdc codec.JSONMarshaler) json.RawMessage {
 	return nil
 }
 
 // ValidateGenesis performs genesis state validation for the oracle module.
-func (AppModuleBasic) ValidateGenesis(_ json.RawMessage) error {
+func (AppModuleBasic) ValidateGenesis(_ codec.JSONMarshaler, _ json.RawMessage) error {
 	return nil
 }
 
@@ -110,13 +110,13 @@ func (am AppModule) NewQuerierHandler() sdk.Querier {
 
 // InitGenesis performs genesis initialization for the oracle module. It returns
 // no validator updates.
-func (am AppModule) InitGenesis(_ sdk.Context, _ json.RawMessage) []abci.ValidatorUpdate {
+func (am AppModule) InitGenesis(_ sdk.Context, _ codec.JSONMarshaler, _ json.RawMessage) []abci.ValidatorUpdate {
 	return nil
 }
 
 // ExportGenesis returns the exported genesis state as raw bytes for the oracle
 // module.
-func (am AppModule) ExportGenesis(ctx sdk.Context) json.RawMessage {
+func (am AppModule) ExportGenesis(ctx sdk.Context, _ codec.JSONMarshaler) json.RawMessage {
 	return nil
 }
 

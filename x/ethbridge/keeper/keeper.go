@@ -18,15 +18,15 @@ import (
 type Keeper struct {
 	cdc *codec.Codec // The wire codec for binary encoding/decoding.
 
-	supplyKeeper types.SupplyKeeper
+	bankKeeper types.BankKeeper
 	oracleKeeper types.OracleKeeper
 }
 
 // NewKeeper creates new instances of the oracle Keeper
-func NewKeeper(cdc *codec.Codec, supplyKeeper types.SupplyKeeper, oracleKeeper types.OracleKeeper) Keeper {
+func NewKeeper(cdc *codec.Codec, bankKeeper types.BankKeeper, oracleKeeper types.OracleKeeper) Keeper {
 	return Keeper{
 		cdc:          cdc,
-		supplyKeeper: supplyKeeper,
+		bankKeeper: bankKeeper,
 		oracleKeeper: oracleKeeper,
 	}
 }
@@ -60,10 +60,10 @@ func (k Keeper) ProcessSuccessfulClaim(ctx sdk.Context, claim string) error {
 	case types.LockText:
 		symbol := fmt.Sprintf("%v%v", types.PeggedCoinPrefix, oracleClaim.Symbol)
 		coins = sdk.Coins{sdk.NewInt64Coin(symbol, oracleClaim.Amount)}
-		err = k.supplyKeeper.MintCoins(ctx, types.ModuleName, coins)
+		err = k.bankKeeper.MintCoins(ctx, types.ModuleName, coins)
 	case types.BurnText:
 		coins = sdk.Coins{sdk.NewInt64Coin(oracleClaim.Symbol, oracleClaim.Amount)}
-		err = k.supplyKeeper.MintCoins(ctx, types.ModuleName, coins)
+		err = k.bankKeeper.MintCoins(ctx, types.ModuleName, coins)
 	default:
 		err = types.ErrInvalidClaimType
 	}
@@ -72,7 +72,7 @@ func (k Keeper) ProcessSuccessfulClaim(ctx sdk.Context, claim string) error {
 		return err
 	}
 
-	if err := k.supplyKeeper.SendCoinsFromModuleToAccount(
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(
 		ctx, types.ModuleName, receiverAddress, coins,
 	); err != nil {
 		panic(err)
@@ -83,13 +83,13 @@ func (k Keeper) ProcessSuccessfulClaim(ctx sdk.Context, claim string) error {
 
 // ProcessBurn processes the burn of bridged coins from the given sender
 func (k Keeper) ProcessBurn(ctx sdk.Context, cosmosSender sdk.AccAddress, amount sdk.Coins) error {
-	if err := k.supplyKeeper.SendCoinsFromAccountToModule(
+	if err := k.bankKeeper.SendCoinsFromAccountToModule(
 		ctx, cosmosSender, types.ModuleName, amount,
 	); err != nil {
 		return err
 	}
 
-	if err := k.supplyKeeper.BurnCoins(ctx, types.ModuleName, amount); err != nil {
+	if err := k.bankKeeper.BurnCoins(ctx, types.ModuleName, amount); err != nil {
 		panic(err)
 	}
 
@@ -98,5 +98,5 @@ func (k Keeper) ProcessBurn(ctx sdk.Context, cosmosSender sdk.AccAddress, amount
 
 // ProcessLock processes the lockup of cosmos coins from the given sender
 func (k Keeper) ProcessLock(ctx sdk.Context, cosmosSender sdk.AccAddress, amount sdk.Coins) error {
-	return k.supplyKeeper.SendCoinsFromAccountToModule(ctx, cosmosSender, types.ModuleName, amount)
+	return k.bankKeeper.SendCoinsFromAccountToModule(ctx, cosmosSender, types.ModuleName, amount)
 }

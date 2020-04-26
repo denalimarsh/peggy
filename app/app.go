@@ -23,7 +23,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	"github.com/cosmos/cosmos-sdk/x/params"
 	"github.com/cosmos/cosmos-sdk/x/staking"
-	"github.com/cosmos/cosmos-sdk/x/supply"
 )
 
 const (
@@ -46,17 +45,17 @@ var (
 		bank.AppModuleBasic{},
 		staking.AppModuleBasic{},
 		params.AppModuleBasic{},
-		supply.AppModuleBasic{},
+		bank.AppModuleBasic{},
 		oracle.AppModuleBasic{},
 		ethbridge.AppModuleBasic{},
 	)
 
 	// module account permissions
 	maccPerms = map[string][]string{
-		auth.FeeCollectorName:     nil,
-		staking.BondedPoolName:    {supply.Burner, supply.Staking},
-		staking.NotBondedPoolName: {supply.Burner, supply.Staking},
-		ethbridge.ModuleName:      {supply.Burner, supply.Minter},
+		auth.FeeCollectorName: nil,
+		// staking.BondedPoolName:    {supply.Burner, supply.Staking},
+		// staking.NotBondedPoolName: {supply.Burner, supply.Staking},
+		// ethbridge.ModuleName:      {supply.Burner, supply.Minter},
 	}
 )
 
@@ -84,8 +83,8 @@ type EthereumBridgeApp struct {
 	AccountKeeper auth.AccountKeeper
 	BankKeeper    bank.Keeper
 	StakingKeeper staking.Keeper
-	SupplyKeeper  supply.Keeper
-	ParamsKeeper  params.Keeper
+	// SupplyKeeper  supply.Keeper
+	ParamsKeeper params.Keeper
 
 	// EthBridge keepers
 	BridgeKeeper ethbridge.Keeper
@@ -109,7 +108,7 @@ func NewEthereumBridgeApp(
 
 	keys := sdk.NewKVStoreKeys(
 		bam.MainStoreKey, auth.StoreKey, staking.StoreKey,
-		supply.StoreKey, oracle.StoreKey, params.StoreKey,
+		oracle.StoreKey, params.StoreKey, // supply.StoreKey,
 	)
 	tkeys := sdk.NewTransientStoreKeys(staking.TStoreKey, params.TStoreKey)
 
@@ -131,13 +130,13 @@ func NewEthereumBridgeApp(
 	// add keepers
 	app.AccountKeeper = auth.NewAccountKeeper(app.cdc, keys[auth.StoreKey], authSubspace, auth.ProtoBaseAccount)
 	app.BankKeeper = bank.NewBaseKeeper(app.AccountKeeper, bankSubspace, app.ModuleAccountAddrs())
-	app.SupplyKeeper = supply.NewKeeper(app.cdc, keys[supply.StoreKey], app.AccountKeeper, app.BankKeeper, maccPerms)
+	// app.SupplyKeeper = supply.NewKeeper(app.cdc, keys[supply.StoreKey], app.AccountKeeper, app.BankKeeper, maccPerms)
 	app.StakingKeeper = staking.NewKeeper(app.cdc, keys[staking.StoreKey],
-		app.SupplyKeeper, stakingSubspace)
+		app.BankKeeper, stakingSubspace)
 	app.OracleKeeper = oracle.NewKeeper(app.cdc, keys[oracle.StoreKey],
 		app.StakingKeeper, oracle.DefaultConsensusNeeded,
 	)
-	app.BridgeKeeper = ethbridge.NewKeeper(app.cdc, app.SupplyKeeper, app.OracleKeeper)
+	app.BridgeKeeper = ethbridge.NewKeeper(app.cdc, app.BankKeeper, app.OracleKeeper)
 
 	// NOTE: Any module instantiated in the module manager that is later modified
 	// must be passed by reference here.
@@ -145,10 +144,10 @@ func NewEthereumBridgeApp(
 		genutil.NewAppModule(app.AccountKeeper, app.StakingKeeper, app.BaseApp.DeliverTx),
 		auth.NewAppModule(app.AccountKeeper),
 		bank.NewAppModule(app.BankKeeper, app.AccountKeeper),
-		supply.NewAppModule(app.SupplyKeeper, app.AccountKeeper),
-		staking.NewAppModule(app.StakingKeeper, app.AccountKeeper, app.SupplyKeeper),
+		// supply.NewAppModule(app.SupplyKeeper, app.AccountKeeper),
+		staking.NewAppModule(app.StakingKeeper, app.AccountKeeper, app.BankKeeper),
 		oracle.NewAppModule(app.OracleKeeper),
-		ethbridge.NewAppModule(app.OracleKeeper, app.SupplyKeeper, app.AccountKeeper, app.BridgeKeeper, app.cdc),
+		ethbridge.NewAppModule(app.OracleKeeper, app.BankKeeper, app.AccountKeeper, app.BridgeKeeper, app.cdc),
 	)
 
 	app.mm.SetOrderEndBlockers(staking.ModuleName)
@@ -157,7 +156,7 @@ func NewEthereumBridgeApp(
 	// properly initialized with tokens from genesis accounts.
 	app.mm.SetOrderInitGenesis(
 		auth.ModuleName, staking.ModuleName, bank.ModuleName,
-		supply.ModuleName, genutil.ModuleName, ethbridge.ModuleName,
+		genutil.ModuleName, ethbridge.ModuleName, // supply.ModuleName,
 	)
 
 	// TODO: add simulator support
@@ -171,7 +170,7 @@ func NewEthereumBridgeApp(
 	// initialize BaseApp
 	app.SetInitChainer(app.InitChainer)
 	app.SetBeginBlocker(app.BeginBlocker)
-	app.SetAnteHandler(ante.NewAnteHandler(app.AccountKeeper, app.SupplyKeeper, auth.DefaultSigVerificationGasConsumer))
+	app.SetAnteHandler(ante.NewAnteHandler(app.AccountKeeper, app.BankKeeper, auth.DefaultSigVerificationGasConsumer))
 	app.SetEndBlocker(app.EndBlocker)
 
 	if loadLatest {
@@ -210,9 +209,10 @@ func (app *EthereumBridgeApp) LoadHeight(height int64) error {
 // ModuleAccountAddrs returns all the app's module account addresses.
 func (app *EthereumBridgeApp) ModuleAccountAddrs() map[string]bool {
 	modAccAddrs := make(map[string]bool)
-	for acc := range maccPerms {
-		modAccAddrs[supply.NewModuleAddress(acc).String()] = true
-	}
+	// TODO:
+	// for acc := range maccPerms {
+	// 	modAccAddrs[supply.NewModuleAddress(acc).String()] = true
+	// }
 
 	return modAccAddrs
 }

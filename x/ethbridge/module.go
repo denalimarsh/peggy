@@ -14,7 +14,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-	"github.com/cosmos/cosmos-sdk/x/supply"
+	// "github.com/cosmos/cosmos-sdk/x/supply"
 )
 
 var (
@@ -74,7 +74,7 @@ type AppModule struct {
 	AppModuleSimulation
 
 	OracleKeeper  types.OracleKeeper
-	SupplyKeeper  types.SupplyKeeper
+	BankKeeper    types.BankKeeper
 	AccountKeeper types.AccountKeeper
 	BridgeKeeper  Keeper
 	Codec         *codec.Codec
@@ -82,7 +82,7 @@ type AppModule struct {
 
 // NewAppModule creates a new AppModule object
 func NewAppModule(
-	oracleKeeper types.OracleKeeper, supplyKeeper types.SupplyKeeper,
+	oracleKeeper types.OracleKeeper, bankKeeper types.BankKeeper,
 	accountKeeper types.AccountKeeper, bridgeKeeper Keeper,
 	cdc *codec.Codec) AppModule {
 
@@ -91,7 +91,7 @@ func NewAppModule(
 		AppModuleSimulation: AppModuleSimulation{},
 
 		OracleKeeper:  oracleKeeper,
-		SupplyKeeper:  supplyKeeper,
+		BankKeeper:    bankKeeper,
 		AccountKeeper: accountKeeper,
 		BridgeKeeper:  bridgeKeeper,
 		Codec:         cdc,
@@ -130,8 +130,11 @@ func (am AppModule) NewQuerierHandler() sdk.Querier {
 // InitGenesis performs genesis initialization for the ethbridge module. It returns
 // no validator updates.
 func (am AppModule) InitGenesis(ctx sdk.Context, _ json.RawMessage) []abci.ValidatorUpdate {
-	bridgeAccount := supply.NewEmptyModuleAccount(ModuleName, supply.Burner, supply.Minter)
-	am.SupplyKeeper.SetModuleAccount(ctx, bridgeAccount)
+	// bridgeAccount := supply.NewEmptyModuleAccount(ModuleName, supply.Burner, supply.Minter)
+	// am.SupplyKeeper.SetModuleAccount(ctx, bridgeAccount)
+
+	// app.AccountKeeper.SetParams(ctx, auth.DefaultParams())
+	am.BankKeeper.SetSendEnabled(ctx, true)
 	return nil
 }
 
