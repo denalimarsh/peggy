@@ -14,7 +14,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-	// "github.com/cosmos/cosmos-sdk/x/supply"
 )
 
 var (
@@ -23,7 +22,9 @@ var (
 )
 
 // AppModuleBasic defines the basic application module used by the ethbridge module.
-type AppModuleBasic struct{}
+type AppModuleBasic struct {
+	cdc codec.Marshaler
+}
 
 var _ module.AppModuleBasic = AppModuleBasic{}
 
@@ -39,12 +40,12 @@ func (AppModuleBasic) RegisterCodec(cdc *codec.Codec) {
 
 // DefaultGenesis returns default genesis state as raw bytes for the ethbridge
 // module.
-func (AppModuleBasic) DefaultGenesis() json.RawMessage {
+func (AppModuleBasic) DefaultGenesis(cdc codec.JSONMarshaler) json.RawMessage {
 	return nil
 }
 
 // ValidateGenesis performs genesis state validation for the ethbridge module.
-func (AppModuleBasic) ValidateGenesis(_ json.RawMessage) error {
+func (AppModuleBasic) ValidateGenesis(_ codec.JSONMarshaler, _ json.RawMessage) error {
 	return nil
 }
 
@@ -73,28 +74,26 @@ type AppModule struct {
 	AppModuleBasic
 	AppModuleSimulation
 
-	OracleKeeper  types.OracleKeeper
+	keeper        Keeper
 	BankKeeper    types.BankKeeper
 	AccountKeeper types.AccountKeeper
-	BridgeKeeper  Keeper
-	Codec         *codec.Codec
+	OracleKeeper  types.OracleKeeper
 }
 
 // NewAppModule creates a new AppModule object
 func NewAppModule(
-	oracleKeeper types.OracleKeeper, bankKeeper types.BankKeeper,
-	accountKeeper types.AccountKeeper, bridgeKeeper Keeper,
-	cdc *codec.Codec) AppModule {
+	cdc codec.Marshaler, oracleKeeper types.OracleKeeper,
+	bankKeeper types.BankKeeper, accountKeeper types.AccountKeeper,
+	keeper Keeper) AppModule {
 
 	return AppModule{
-		AppModuleBasic:      AppModuleBasic{},
+		AppModuleBasic:      AppModuleBasic{cdc: cdc},
 		AppModuleSimulation: AppModuleSimulation{},
 
-		OracleKeeper:  oracleKeeper,
+		keeper:        keeper,
 		BankKeeper:    bankKeeper,
 		AccountKeeper: accountKeeper,
-		BridgeKeeper:  bridgeKeeper,
-		Codec:         cdc,
+		OracleKeeper:  oracleKeeper,
 	}
 }
 
@@ -114,7 +113,7 @@ func (AppModule) Route() string {
 
 // NewHandler returns an sdk.Handler for the ethbridge module.
 func (am AppModule) NewHandler() sdk.Handler {
-	return NewHandler(am.AccountKeeper, am.BridgeKeeper, am.Codec)
+	return NewHandler(am.AccountKeeper, am.keeper)
 }
 
 // QuerierRoute returns the ethbridge module's querier route name.
@@ -124,23 +123,24 @@ func (AppModule) QuerierRoute() string {
 
 // NewQuerierHandler returns the ethbridge module sdk.Querier.
 func (am AppModule) NewQuerierHandler() sdk.Querier {
-	return NewQuerier(am.OracleKeeper, am.Codec)
+	return NewQuerier(am.OracleKeeper)
 }
 
 // InitGenesis performs genesis initialization for the ethbridge module. It returns
 // no validator updates.
-func (am AppModule) InitGenesis(ctx sdk.Context, _ json.RawMessage) []abci.ValidatorUpdate {
+func (am AppModule) InitGenesis(_ sdk.Context, _ codec.JSONMarshaler, _ json.RawMessage) []abci.ValidatorUpdate {
 	// bridgeAccount := supply.NewEmptyModuleAccount(ModuleName, supply.Burner, supply.Minter)
 	// am.SupplyKeeper.SetModuleAccount(ctx, bridgeAccount)
-
+	// ---------------------------------------------
+	// TODO: replace module account with bank account
 	// app.AccountKeeper.SetParams(ctx, auth.DefaultParams())
-	am.BankKeeper.SetSendEnabled(ctx, true)
+	// am.BankKeeper.SetSendEnabled(ctx, true)
 	return nil
 }
 
 // ExportGenesis returns the exported genesis state as raw bytes for the ethbridge
 // module.
-func (am AppModule) ExportGenesis(ctx sdk.Context) json.RawMessage {
+func (am AppModule) ExportGenesis(ctx sdk.Context, _ codec.JSONMarshaler) json.RawMessage {
 	return nil
 }
 

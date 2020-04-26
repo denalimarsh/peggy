@@ -17,11 +17,11 @@ import (
 // TODO: move to x/oracle
 
 // NewQuerier is the module level router for state queries
-func NewQuerier(keeper types.OracleKeeper, cdc *codec.Codec) sdk.Querier {
+func NewQuerier(keeper types.OracleKeeper) sdk.Querier {
 	return func(ctx sdk.Context, path []string, req abci.RequestQuery) ([]byte, error) {
 		switch path[0] {
 		case types.QueryEthProphecy:
-			return queryEthProphecy(ctx, cdc, req, keeper)
+			return queryEthProphecy(ctx, req, keeper)
 		default:
 			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, "unknown ethbridge query endpoint")
 		}
@@ -29,11 +29,11 @@ func NewQuerier(keeper types.OracleKeeper, cdc *codec.Codec) sdk.Querier {
 }
 
 func queryEthProphecy(
-	ctx sdk.Context, cdc *codec.Codec, req abci.RequestQuery, keeper types.OracleKeeper,
+	ctx sdk.Context, req abci.RequestQuery, keeper types.OracleKeeper,
 ) ([]byte, error) {
 	var params types.QueryEthProphecyParams
 
-	if err := cdc.UnmarshalJSON(req.Data, &params); err != nil {
+	if err := types.ModuleCdc.UnmarshalJSON(req.Data, &params); err != nil {
 		return nil, sdkerrors.Wrap(types.ErrJSONMarshalling, fmt.Sprintf("failed to parse params: %s", err.Error()))
 	}
 
@@ -50,7 +50,11 @@ func queryEthProphecy(
 		return nil, err
 	}
 
-	response := types.NewQueryEthProphecyResponse(prophecy.ID, prophecy.Status, bridgeClaims)
+	queryResponse := types.NewQueryEthProphecyResponse(prophecy.ID, prophecy.Status, bridgeClaims)
+	res, err := codec.MarshalJSONIndent(types.ModuleCdc, queryResponse)
+	if err != nil {
+		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+	}
 
-	return cdc.MarshalJSONIndent(response, "", "  ")
+	return res, nil
 }

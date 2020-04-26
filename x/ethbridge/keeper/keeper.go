@@ -3,12 +3,11 @@ package keeper
 import (
 	"fmt"
 
+	"github.com/tendermint/go-amino"
 	"github.com/tendermint/tendermint/libs/log"
 
 	"github.com/cosmos/peggy/x/ethbridge/types"
 	"github.com/cosmos/peggy/x/oracle"
-
-	"github.com/cosmos/cosmos-sdk/codec"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -16,17 +15,18 @@ import (
 // Keeper maintains the link to data storage and
 // exposes getter/setter methods for the various parts of the state machine
 type Keeper struct {
-	cdc *codec.Codec // The wire codec for binary encoding/decoding.
-
-	bankKeeper types.BankKeeper
+	cdc          *amino.Codec // The wire codec for binary encoding/decoding.
+	storeKey     sdk.StoreKey // Unexposed key to access store from sdk.Context
+	bankKeeper   types.BankKeeper
 	oracleKeeper types.OracleKeeper
 }
 
 // NewKeeper creates new instances of the oracle Keeper
-func NewKeeper(cdc *codec.Codec, bankKeeper types.BankKeeper, oracleKeeper types.OracleKeeper) Keeper {
+func NewKeeper(cdc *amino.Codec, storeKey sdk.StoreKey, bankKeeper types.BankKeeper, oracleKeeper types.OracleKeeper) Keeper {
 	return Keeper{
 		cdc:          cdc,
-		bankKeeper: bankKeeper,
+		storeKey:     storeKey,
+		bankKeeper:   bankKeeper,
 		oracleKeeper: oracleKeeper,
 	}
 }

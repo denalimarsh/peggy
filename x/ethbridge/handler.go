@@ -8,24 +8,22 @@ import (
 	"github.com/cosmos/peggy/x/ethbridge/types"
 	"github.com/cosmos/peggy/x/oracle"
 
-	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
 
 // NewHandler returns a handler for "ethbridge" type messages.
-func NewHandler(
-	accountKeeper types.AccountKeeper, bridgeKeeper Keeper,
-	cdc *codec.Codec) sdk.Handler {
+func NewHandler(accountKeeper types.AccountKeeper, bridgeKeeper Keeper) sdk.Handler {
 	return func(ctx sdk.Context, msg sdk.Msg) (*sdk.Result, error) {
 		ctx = ctx.WithEventManager(sdk.NewEventManager())
+
 		switch msg := msg.(type) {
 		case MsgCreateEthBridgeClaim:
-			return handleMsgCreateEthBridgeClaim(ctx, cdc, bridgeKeeper, msg)
+			return handleMsgCreateEthBridgeClaim(ctx, bridgeKeeper, msg)
 		case MsgBurn:
-			return handleMsgBurn(ctx, cdc, accountKeeper, bridgeKeeper, msg)
+			return handleMsgBurn(ctx, accountKeeper, bridgeKeeper, msg)
 		case MsgLock:
-			return handleMsgLock(ctx, cdc, accountKeeper, bridgeKeeper, msg)
+			return handleMsgLock(ctx, accountKeeper, bridgeKeeper, msg)
 		default:
 			errMsg := fmt.Sprintf("unrecognized ethbridge message type: %v", msg.Type())
 			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, errMsg)
@@ -35,7 +33,7 @@ func NewHandler(
 
 // Handle a message to create a bridge claim
 func handleMsgCreateEthBridgeClaim(
-	ctx sdk.Context, cdc *codec.Codec, bridgeKeeper Keeper, msg MsgCreateEthBridgeClaim,
+	ctx sdk.Context, bridgeKeeper Keeper, msg MsgCreateEthBridgeClaim,
 ) (*sdk.Result, error) {
 	status, err := bridgeKeeper.ProcessClaim(ctx, types.EthBridgeClaim(msg))
 	if err != nil {
@@ -68,11 +66,11 @@ func handleMsgCreateEthBridgeClaim(
 		),
 	})
 
-	return &sdk.Result{Events: ctx.EventManager().Events()}, nil
+	return &sdk.Result{Events: ctx.EventManager().Events().ToABCIEvents()}, nil
 }
 
 func handleMsgBurn(
-	ctx sdk.Context, cdc *codec.Codec, accountKeeper types.AccountKeeper,
+	ctx sdk.Context, accountKeeper types.AccountKeeper,
 	bridgeKeeper Keeper, msg MsgBurn,
 ) (*sdk.Result, error) {
 
@@ -103,12 +101,11 @@ func handleMsgBurn(
 		),
 	})
 
-	return &sdk.Result{Events: ctx.EventManager().Events()}, nil
-
+	return &sdk.Result{Events: ctx.EventManager().Events().ToABCIEvents()}, nil
 }
 
 func handleMsgLock(
-	ctx sdk.Context, cdc *codec.Codec, accountKeeper types.AccountKeeper,
+	ctx sdk.Context, accountKeeper types.AccountKeeper,
 	bridgeKeeper Keeper, msg MsgLock,
 ) (*sdk.Result, error) {
 
@@ -139,6 +136,5 @@ func handleMsgLock(
 		),
 	})
 
-	return &sdk.Result{Events: ctx.EventManager().Events()}, nil
-
+	return &sdk.Result{Events: ctx.EventManager().Events().ToABCIEvents()}, nil
 }
