@@ -71,9 +71,9 @@ type AppModule struct {
 }
 
 // NewAppModule creates a new AppModule object
-func NewAppModule(keeper Keeper) AppModule {
+func NewAppModule(_ codec.Marshaler, keeper Keeper) AppModule {
 	return AppModule{
-		AppModuleBasic:      AppModuleBasic{},
+		AppModuleBasic:      AppModuleBasic{}, // TODO: cdc: {cdc}
 		AppModuleSimulation: AppModuleSimulation{},
 		keeper:              keeper,
 	}

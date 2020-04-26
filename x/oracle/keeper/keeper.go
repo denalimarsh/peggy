@@ -3,20 +3,20 @@ package keeper
 import (
 	"fmt"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/tendermint/go-amino"
 	"github.com/tendermint/tendermint/libs/log"
 
-	"github.com/cosmos/cosmos-sdk/codec"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/peggy/x/oracle/types"
 )
 
 // Keeper maintains the link to data storage and
 // exposes getter/setter methods for the various parts of the state machine
 type Keeper struct {
-	cdc      *codec.Codec // The wire codec for binary encoding/decoding.
+	cdc      *amino.Codec
 	storeKey sdk.StoreKey // Unexposed key to access store from sdk.Context
 
-	stakeKeeper types.StakingKeeper
+	stakingKeeper types.StakingKeeper
 
 	// TODO: use this as param instead
 	consensusNeeded float64 // The minimum % of stake needed to sign claims in order for consensus to occur
@@ -24,15 +24,15 @@ type Keeper struct {
 
 // NewKeeper creates new instances of the oracle Keeper
 func NewKeeper(
-	cdc *codec.Codec, storeKey sdk.StoreKey, stakeKeeper types.StakingKeeper, consensusNeeded float64,
+	cdc *amino.Codec, storeKey sdk.StoreKey, sk types.StakingKeeper, consensusNeeded float64,
 ) Keeper {
 	if consensusNeeded <= 0 || consensusNeeded > 1 {
 		panic(types.ErrMinimumConsensusNeededInvalid.Error())
 	}
 	return Keeper{
-		cdc:             cdc,
 		storeKey:        storeKey,
-		stakeKeeper:     stakeKeeper,
+		cdc:             cdc,
+		stakingKeeper:   sk,
 		consensusNeeded: consensusNeeded,
 	}
 }
@@ -111,7 +111,7 @@ func (k Keeper) ProcessClaim(ctx sdk.Context, claim types.Claim) (types.Status, 
 }
 
 func (k Keeper) checkActiveValidator(ctx sdk.Context, validatorAddress sdk.ValAddress) bool {
-	validator, found := k.stakeKeeper.GetValidator(ctx, validatorAddress)
+	validator, found := k.stakingKeeper.GetValidator(ctx, validatorAddress)
 	if !found {
 		return false
 	}
@@ -125,8 +125,8 @@ func (k Keeper) checkActiveValidator(ctx sdk.Context, validatorAddress sdk.ValAd
 // will never be able to become successful due to not enough validation power being
 // left to push it over the threshold required for consensus.
 func (k Keeper) processCompletion(ctx sdk.Context, prophecy types.Prophecy) types.Prophecy {
-	highestClaim, highestClaimPower, totalClaimsPower := prophecy.FindHighestClaim(ctx, k.stakeKeeper)
-	totalPower := k.stakeKeeper.GetLastTotalPower(ctx)
+	highestClaim, highestClaimPower, totalClaimsPower := prophecy.FindHighestClaim(ctx, k.stakingKeeper)
+	totalPower := k.stakingKeeper.GetLastTotalPower(ctx)
 	highestConsensusRatio := float64(highestClaimPower) / float64(totalPower.Int64())
 	remainingPossibleClaimPower := totalPower.Int64() - totalClaimsPower
 	highestPossibleClaimPower := highestClaimPower + remainingPossibleClaimPower
