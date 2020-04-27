@@ -12,6 +12,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/client/rpc"
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -20,17 +21,27 @@ import (
 	"github.com/tendermint/tendermint/libs/cli"
 	tmLog "github.com/tendermint/tendermint/libs/log"
 
+	// codecstd "github.com/cosmos/cosmos-sdk/codec/std"
+
 	"github.com/cosmos/peggy/app"
 	"github.com/cosmos/peggy/cmd/ebrelayer/contract"
 	"github.com/cosmos/peggy/cmd/ebrelayer/relayer"
 	"github.com/cosmos/peggy/cmd/ebrelayer/txs"
 )
 
-var cdc *codec.Codec
+// var cdc *codec.Codec
+// var defaultHome = os.ExpandEnv("$HOME/.relayer")
+var (
+	// appCodec       *codecstd.Codec
+	cdc            *codec.Codec
+	homePath       string
+	DefaultCLIHome = os.ExpandEnv("$HOME/.ebcli")
+)
 
 const (
 	// FlagRPCURL defines the URL for the tendermint RPC connection
 	FlagRPCURL = "rpc-url"
+	// FlagHome   = "home"
 	// EnvPrefix defines the environment prefix for the root cmd
 	EnvPrefix = "EBRELAYER"
 )
@@ -45,12 +56,16 @@ func init() {
 	config.Seal()
 
 	cdc = app.MakeCodec()
+	// cdc := codecstd.MakeCodec(app.ModuleBasics)
+	// appCodec = codecstd.NewAppCodec(cdc)
 
 	// Add --chain-id to persistent flags and mark it required
 	rootCmd.PersistentFlags().String(flags.FlagKeyringBackend, flags.DefaultKeyringBackend,
 		"Select keyring's backend (os|file|test)")
 	rootCmd.PersistentFlags().String(flags.FlagChainID, "", "Chain ID of tendermint node")
+	// rootCmd.PersistentFlags().String(flags.FlagHome, DefaultCLIHome, "Chain ID of tendermint node")
 	rootCmd.PersistentFlags().String(FlagRPCURL, "", "RPC URL of tendermint node")
+
 	rootCmd.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
 		return initConfig(rootCmd)
 	}
@@ -62,7 +77,6 @@ func init() {
 		generateBindingsCmd(),
 	)
 
-	DefaultCLIHome := os.ExpandEnv("$HOME/.ebcli")
 	executor := cli.PrepareMainCmd(rootCmd, EnvPrefix, os.ExpandEnv(DefaultCLIHome))
 	err := executor.Execute()
 	if err != nil {
@@ -105,6 +119,24 @@ func generateBindingsCmd() *cobra.Command {
 
 // RunInitRelayerCmd executes initRelayerCmd
 func RunInitRelayerCmd(cmd *cobra.Command, args []string) error {
+	// Load validator's Cosmos keychain
+	inBuf := bufio.NewReader(cmd.InOrStdin())
+	kr, err := keyring.New(
+		sdk.KeyringServiceName(),
+		viper.GetString(flags.FlagKeyringBackend),
+		viper.GetString(flags.FlagHome),
+		inBuf,
+	)
+	if err != nil {
+		return err
+	}
+
+	// info, err := kb.Key(args[0])
+	// if err != nil {
+	// 	return fmt.Errorf("failed to get address from Keybase: %w", err)
+	// }
+	// addr := info.GetAddress()
+
 	// Load the validator's Ethereum private key from environment variables
 	privateKey, err := txs.LoadPrivateKey()
 	if err != nil {
@@ -147,13 +179,18 @@ func RunInitRelayerCmd(cmd *cobra.Command, args []string) error {
 	}
 	validatorMoniker := args[3]
 
+	// Init keybase
+	// keybase, err := keys.New(chainID, "test", path.Join(home, "keys", chainID), nil)
+	// if err != nil {
+	// 	return err
+	// }
+
 	// Universal logger
 	logger := tmLog.NewTMLogger(tmLog.NewSyncWriter(os.Stdout))
 
 	// Initialize new Ethereum event listener
-	inBuf := bufio.NewReader(cmd.InOrStdin())
 	ethSub, err := relayer.NewEthereumSub(inBuf, rpcURL, cdc, validatorMoniker, chainID, web3Provider,
-		contractAddress, privateKey, logger)
+		contractAddress, privateKey, kr, logger)
 	if err != nil {
 		return err
 	}
@@ -186,6 +223,9 @@ func RunGenerateBindingsCmd(cmd *cobra.Command, args []string) error {
 }
 
 func initConfig(cmd *cobra.Command) error {
+	// if err := viper.BindPFlag(FlagHome, rootCmd.Flags().Lookup(flags.FlagHome)); err != nil {
+	// 	return err
+	// }
 	return viper.BindPFlag(flags.FlagChainID, cmd.PersistentFlags().Lookup(flags.FlagChainID))
 }
 

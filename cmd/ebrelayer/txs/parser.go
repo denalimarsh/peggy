@@ -104,11 +104,11 @@ func CosmosMsgToProphecyClaim(event types.CosmosMsg) ProphecyClaim {
 	amount := event.Amount
 
 	prophecyClaim := ProphecyClaim{
-		ClaimType:            claimType,
-		CosmosSender:         cosmosSender,
-		EthereumReceiver:     ethereumReceiver,
-		Symbol:               symbol,
-		Amount:               amount,
+		ClaimType:        claimType,
+		CosmosSender:     cosmosSender,
+		EthereumReceiver: ethereumReceiver,
+		Symbol:           symbol,
+		Amount:           amount,
 	}
 	return prophecyClaim
 }

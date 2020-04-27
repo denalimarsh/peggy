@@ -5,13 +5,13 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"os"
 
 	sdkContext "github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/keys"
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	utils "github.com/cosmos/cosmos-sdk/x/auth/client"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -47,9 +47,9 @@ type EthereumSub struct {
 // NewEthereumSub initializes a new EthereumSub
 func NewEthereumSub(inBuf io.Reader, rpcURL string, cdc *codec.Codec, validatorMoniker, chainID,
 	ethProvider string, registryContractAddress common.Address, privateKey *ecdsa.PrivateKey,
-	logger tmLog.Logger) (EthereumSub, error) {
+	kr keyring.Keyring, logger tmLog.Logger) (EthereumSub, error) {
 	// Load validator details
-	validatorAddress, validatorName, err := LoadValidatorCredentials(validatorMoniker, inBuf)
+	validatorAddress, validatorName, err := LoadValidatorCredentials(validatorMoniker, kr)
 	if err != nil {
 		return EthereumSub{}, err
 	}
@@ -74,9 +74,16 @@ func NewEthereumSub(inBuf io.Reader, rpcURL string, cdc *codec.Codec, validatorM
 }
 
 // LoadValidatorCredentials : loads validator's credentials (address, moniker, and passphrase)
-func LoadValidatorCredentials(validatorFrom string, inBuf io.Reader) (sdk.ValAddress, string, error) {
+func LoadValidatorCredentials(validatorFrom string, kr keyring.Keyring) (sdk.ValAddress, string, error) {
+	// // 'os' or 'pass'
+	// kr, err := keyring.New("EthereumBridge", "os", )
+	// if err != nil {
+	// 	panic("cry")
+	// }
+
 	// Get the validator's name and account address using their moniker
-	validatorAccAddress, validatorName, err := sdkContext.GetFromFields(inBuf, validatorFrom, false)
+	// validatorAccAddress, validatorName, err := sdkContext.GetFromFields(inBuf, validatorFrom, false)
+	validatorAccAddress, validatorName, err := sdkContext.GetFromFields(kr, validatorFrom, false)
 	if err != nil {
 		return sdk.ValAddress{}, "", err
 	}
@@ -105,12 +112,27 @@ func LoadTendermintCLIContext(appCodec *amino.Codec, validatorAddress sdk.ValAdd
 	}
 	cliCtx.SkipConfirm = true
 
+	// TODO:
+	// chain, err := config.Chains.Get(args[0])
+	// if err != nil {
+	// 	return err
+	// }
+	// addr, err := chain.GetAddress()
+	// if err != nil {
+	// 	return err
+	// }
+	// acc, err := auth.NewAccountRetriever(chain.Cdc, chain).GetAccount(addr)
+	// if err != nil {
+	// 	return err
+	// }
+
 	// Confirm that the validator's address exists
-	accountRetriever := authtypes.NewAccountRetriever(cliCtx)
-	err := accountRetriever.EnsureExists((sdk.AccAddress(validatorAddress)))
-	if err != nil {
-		log.Fatal(err)
-	}
+	// route := fmt.Sprintf("custom/%s/%s", authtypes.QuerierRoute, authtypes.QueryAccount)
+	// accountRetriever := authtypes.NewAccountRetriever(authtypes.Codec, QueryWithData(route, nil))
+	// err := accountRetriever.EnsureExists((sdk.AccAddress(validatorAddress)))
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 	return cliCtx
 }
 
