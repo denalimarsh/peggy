@@ -18,6 +18,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/version"
 	"github.com/cosmos/cosmos-sdk/x/auth"
+	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	distr "github.com/cosmos/cosmos-sdk/x/distribution"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
@@ -72,14 +73,14 @@ var (
 
 // TODO:
 // // MakeCodec generates the necessary codecs for Amino
-// func MakeCodec() *codec.Codec {
-// 	var cdc = codec.New()
-// 	ModuleBasics.RegisterCodec(cdc)
-// 	vesting.RegisterCodec(cdc)
-// 	sdk.RegisterCodec(cdc)
-// 	codec.RegisterCrypto(cdc)
-// 	return cdc
-// }
+func MakeCodec() *codec.Codec {
+	var cdc = codec.New()
+	ModuleBasics.RegisterCodec(cdc)
+	vesting.RegisterCodec(cdc)
+	sdk.RegisterCodec(cdc)
+	codec.RegisterCrypto(cdc)
+	return cdc
+}
 
 // EthereumBridgeApp defines the Ethereum-Cosmos peg-zone application
 type EthereumBridgeApp struct {
@@ -115,7 +116,8 @@ func NewEthereumBridgeApp(
 ) *EthereumBridgeApp {
 
 	// First define the top level codec that will be shared by the different modules
-	cdc := codecstd.MakeCodec(ModuleBasics)
+	// TODO: cdc := codecstd.MakeCodec(ModuleBasics)
+	cdc := MakeCodec()
 	appCodec := codecstd.NewAppCodec(cdc)
 
 	// BaseApp handles interactions with Tendermint through the ABCI protocol
@@ -124,8 +126,8 @@ func NewEthereumBridgeApp(
 	bApp.SetAppVersion(version.Version)
 
 	keys := sdk.NewKVStoreKeys(
-		auth.StoreKey, staking.StoreKey, distr.StoreKey,
-		oracle.StoreKey, params.StoreKey,
+		auth.StoreKey, bank.StoreKey, staking.StoreKey, distr.StoreKey,
+		slashing.StoreKey, oracle.StoreKey, params.StoreKey,
 	)
 	tkeys := sdk.NewTransientStoreKeys(params.TStoreKey)
 
@@ -144,6 +146,7 @@ func NewEthereumBridgeApp(
 	app.subspaces[bank.ModuleName] = app.paramsKeeper.Subspace(bank.DefaultParamspace)
 	app.subspaces[staking.ModuleName] = app.paramsKeeper.Subspace(staking.DefaultParamspace)
 	app.subspaces[distr.ModuleName] = app.paramsKeeper.Subspace(distr.DefaultParamspace)
+	app.subspaces[slashing.ModuleName] = app.paramsKeeper.Subspace(slashing.DefaultParamspace)
 
 	// set the BaseApp's parameter store
 	bApp.SetParamStore(app.paramsKeeper.Subspace(baseapp.Paramspace).WithKeyTable(std.ConsensusParamsKeyTable()))
@@ -197,9 +200,8 @@ func NewEthereumBridgeApp(
 	// properly initialized with tokens from genesis accounts.
 	// TODO:  mint.ModuleName,
 	app.mm.SetOrderInitGenesis(
-		auth.ModuleName, distr.ModuleName, slashing.ModuleName,
-		staking.ModuleName, bank.ModuleName, genutil.ModuleName,
-		ethbridge.ModuleName,
+		auth.ModuleName, distr.ModuleName, staking.ModuleName, bank.ModuleName,
+		slashing.ModuleName, genutil.ModuleName, ethbridge.ModuleName,
 	)
 
 	// TODO: add simulator support

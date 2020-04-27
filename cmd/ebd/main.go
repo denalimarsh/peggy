@@ -12,6 +12,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 	"github.com/cosmos/cosmos-sdk/x/staking"
+	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/libs/cli"
 	"github.com/tendermint/tendermint/libs/log"
 	tmtypes "github.com/tendermint/tendermint/types"
@@ -62,7 +63,7 @@ func main() {
 	// rootCmd.AddCommand(debug.Cmd(cdc))
 
 	// TODO:
-	// server.AddCommands(ctx, cdc, rootCmd, newApp, exportAppStateAndTMValidators)
+	server.AddCommands(ctx, cdc, rootCmd, newApp, exportAppStateAndTMValidators)
 
 	// prepare and add flags
 	executor := cli.PrepareBaseCmd(rootCmd, "EB", app.DefaultNodeHome)
@@ -71,35 +72,34 @@ func main() {
 	}
 }
 
-// func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer) abci.Application {
-// 	var cache sdk.MultiStorePersistentCache
+func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer) abci.Application {
+	// var cache sdk.MultiStorePersistentCache
 
-// 	if viper.GetBool(server.FlagInterBlockCache) {
-// 		cache = store.NewCommitKVStoreCacheManager()
-// 	}
+	// if viper.GetBool(server.FlagInterBlockCache) {
+	// 	cache = store.NewCommitKVStoreCacheManager()
+	// }
 
-// 	skipUpgradeHeights := make(map[int64]bool)
-// 	for _, h := range viper.GetIntSlice(server.FlagUnsafeSkipUpgrades) {
-// 		skipUpgradeHeights[int64(h)] = true
-// 	}
+	// skipUpgradeHeights := make(map[int64]bool)
+	// for _, h := range viper.GetIntSlice(server.FlagUnsafeSkipUpgrades) {
+	// 	skipUpgradeHeights[int64(h)] = true
+	// }
 
-// 	ctx := app.BaseApp.NewContext(true, abci.Header{})
+	// ctx := app.BaseApp.NewContext(true, abci.Header{})
 
-// 	return app.NewEthereumBridgeApp(
-// 		logger, db, false, ctx,
-// 	)
-// }
+	// return app.NewEthereumBridgeApp(
+	// 	logger, db, false, ctx,
+	// )
+	return app.NewEthereumBridgeApp(logger, db, traceStore, true)
+}
 
 func exportAppStateAndTMValidators(
 	logger log.Logger, db dbm.DB, traceStore io.Writer, height int64, forZeroHeight bool, jailWhiteList []string,
-) (json.RawMessage, []tmtypes.GenesisValidator, error) { // TODO: *abci.ConsensusParams,
+) (json.RawMessage, []tmtypes.GenesisValidator, *abci.ConsensusParams, error) {
 
 	if height != -1 {
 		ebApp := app.NewEthereumBridgeApp(logger, db, traceStore, false)
-
-		// tzapp := app.NewEthereumBridgeApp(logger, db, traceStore, false, uint(1), map[int64]bool{}, "")
 		if err := ebApp.LoadHeight(height); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		return ebApp.ExportAppStateAndValidators(forZeroHeight, jailWhiteList)
 	}
