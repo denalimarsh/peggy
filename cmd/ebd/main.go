@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/spf13/cobra"
-
+	"github.com/cosmos/cosmos-sdk/client/debug"
+	"github.com/cosmos/cosmos-sdk/client/flags"
 	codecstd "github.com/cosmos/cosmos-sdk/codec/std"
 	"github.com/cosmos/cosmos-sdk/server"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 	"github.com/cosmos/cosmos-sdk/x/staking"
+	"github.com/spf13/cobra"
 	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/libs/cli"
 	"github.com/tendermint/tendermint/libs/log"
@@ -29,7 +30,6 @@ func main() {
 	cdc := codecstd.MakeCodec(app.ModuleBasics)
 	appCodec := codecstd.NewAppCodec(cdc)
 
-	// TODO: set custom bech32 prefixes for peggy
 	config := sdk.GetConfig()
 	config.SetBech32PrefixForAccount(sdk.Bech32PrefixAccAddr, sdk.Bech32PrefixAccPub)
 	config.SetBech32PrefixForValidator(sdk.Bech32PrefixValAddr, sdk.Bech32PrefixValPub)
@@ -47,6 +47,7 @@ func main() {
 
 	rootCmd.AddCommand(genutilcli.InitCmd(ctx, cdc, app.ModuleBasics, app.DefaultNodeHome))
 	rootCmd.AddCommand(genutilcli.CollectGenTxsCmd(ctx, cdc, bank.GenesisBalancesIterator{}, app.DefaultNodeHome))
+	rootCmd.AddCommand(genutilcli.MigrateGenesisCmd(ctx, cdc))
 	rootCmd.AddCommand(
 		genutilcli.GenTxCmd(
 			ctx, cdc, app.ModuleBasics, staking.AppModuleBasic{},
@@ -55,40 +56,24 @@ func main() {
 	)
 	rootCmd.AddCommand(genutilcli.ValidateGenesisCmd(ctx, cdc, app.ModuleBasics))
 	rootCmd.AddCommand(AddGenesisAccountCmd(ctx, cdc, appCodec, app.DefaultNodeHome, app.DefaultCLIHome))
-
+	rootCmd.AddCommand(flags.NewCompletionCmd(rootCmd, true))
 	// TODO: testnet cmd
-	// rootCmd.AddCommand(flags.NewCompletionCmd(rootCmd, true))
 	// rootCmd.AddCommand(testnetCmd(ctx, cdc, app.ModuleBasics, bank.GenesisBalancesIterator{}))
 	// rootCmd.AddCommand(replayCmd())
-	// rootCmd.AddCommand(debug.Cmd(cdc))
+	rootCmd.AddCommand(debug.Cmd(cdc))
 
-	// TODO:
 	server.AddCommands(ctx, cdc, rootCmd, newApp, exportAppStateAndTMValidators)
 
 	// prepare and add flags
 	executor := cli.PrepareBaseCmd(rootCmd, "EB", app.DefaultNodeHome)
+	rootCmd.PersistentFlags().UintVar(&invCheckPeriod, flagInvCheckPeriod,
+		0, "Assert registered invariants every N blocks")
 	if err := executor.Execute(); err != nil {
 		panic(err)
 	}
 }
 
 func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer) abci.Application {
-	// var cache sdk.MultiStorePersistentCache
-
-	// if viper.GetBool(server.FlagInterBlockCache) {
-	// 	cache = store.NewCommitKVStoreCacheManager()
-	// }
-
-	// skipUpgradeHeights := make(map[int64]bool)
-	// for _, h := range viper.GetIntSlice(server.FlagUnsafeSkipUpgrades) {
-	// 	skipUpgradeHeights[int64(h)] = true
-	// }
-
-	// ctx := app.BaseApp.NewContext(true, abci.Header{})
-
-	// return app.NewEthereumBridgeApp(
-	// 	logger, db, false, ctx,
-	// )
 	return app.NewEthereumBridgeApp(logger, db, traceStore, true)
 }
 

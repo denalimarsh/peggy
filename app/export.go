@@ -18,6 +18,7 @@ func (app *EthereumBridgeApp) ExportAppStateAndValidators(forZeroHeight bool, ja
 	// as if they could withdraw from the start of the next block
 	ctx := app.NewContext(true, abci.Header{Height: app.LastBlockHeight()})
 
+	// TODO: Required ?
 	// if forZeroHeight {
 	// 	app.prepForZeroHeightGenesis(ctx, jailWhiteList)
 	// }

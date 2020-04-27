@@ -3,86 +3,126 @@ package relayer
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"os"
+	"strings"
+	"sync"
+	"time"
 
 	sdkContext "github.com/cosmos/cosmos-sdk/client/context"
-	"github.com/cosmos/cosmos-sdk/client/keys"
-	"github.com/cosmos/cosmos-sdk/codec"
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	ckeys "github.com/cosmos/cosmos-sdk/client/keys"
+	aminocodec "github.com/cosmos/cosmos-sdk/codec"
+	codecstd "github.com/cosmos/cosmos-sdk/codec/std"
+	keys "github.com/cosmos/cosmos-sdk/crypto/keyring"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	utils "github.com/cosmos/cosmos-sdk/x/auth/client"
+	"github.com/cosmos/cosmos-sdk/x/auth"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/types"
-	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ctypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	amino "github.com/tendermint/go-amino"
+	abci "github.com/tendermint/tendermint/abci/types"
 	tmLog "github.com/tendermint/tendermint/libs/log"
+	rpcclient "github.com/tendermint/tendermint/rpc/client"
+	rpchttp "github.com/tendermint/tendermint/rpc/client/http"
+	libclient "github.com/tendermint/tendermint/rpc/lib/client"
 
 	"github.com/cosmos/peggy/cmd/ebrelayer/contract"
 	"github.com/cosmos/peggy/cmd/ebrelayer/txs"
 	"github.com/cosmos/peggy/cmd/ebrelayer/types"
+	"github.com/cosmos/peggy/x/ethbridge"
 )
 
 // TODO: Move relay functionality out of EthereumSub into a new Relayer parent struct
+// TODO: Client                  *ethclient.Client
+
+var (
+	gas           = uint64(200000)
+	gasPrices     = "0.025stake"
+	gasAdjustment = 1.0
+)
 
 // EthereumSub is an Ethereum listener that can relay txs to Cosmos and Ethereum
 type EthereumSub struct {
-	Cdc                     *codec.Codec
+	HomePath                string
+	Cdc                     *contextualStdCodec
+	Amino                   *contextualAminoCodec
 	EthProvider             string
+	Keybase                 keys.Keyring
 	RegistryContractAddress common.Address
 	ValidatorName           string
 	ValidatorAddress        sdk.ValAddress
-	CliCtx                  sdkContext.CLIContext
-	TxBldr                  authtypes.TxBuilder
+	Client                  rpcclient.Client
 	PrivateKey              *ecdsa.PrivateKey
 	Logger                  tmLog.Logger
+	CosmosChainID           string
 }
 
 // NewEthereumSub initializes a new EthereumSub
-func NewEthereumSub(inBuf io.Reader, rpcURL string, cdc *codec.Codec, validatorMoniker, chainID,
-	ethProvider string, registryContractAddress common.Address, privateKey *ecdsa.PrivateKey,
-	kr keyring.Keyring, logger tmLog.Logger) (EthereumSub, error) {
+func NewEthereumSub(homePath string, rpcURL string, cdc *codecstd.Codec, amino *aminocodec.Codec,
+	validatorMoniker, chainID, ethProvider string, registryContractAddress common.Address,
+	privateKey *ecdsa.PrivateKey, kr keys.Keyring, logger tmLog.Logger,
+) (EthereumSub, error) {
+
+	// Initialize a new HTTP tendermint client
+	timeout := time.Duration(time.Hour * 24 * 7) // One week timeout
+	rpcAddr := fmt.Sprintf("http://localhost:%s", "26657")
+	client, err := newRPCClient(rpcAddr, timeout)
+	if err != nil {
+		return EthereumSub{}, err
+	}
+
+	_, err = sdk.ParseDecCoins(gasPrices)
+	if err != nil {
+		return EthereumSub{}, err
+	}
+
+	// TODO: Don't really need these?
+	contextualCdc := newContextualStdCodec(cdc, UseSDKContext)
+	contextualAminoCdc := newContextualAminoCodec(amino, UseSDKContext)
+
 	// Load validator details
 	validatorAddress, validatorName, err := LoadValidatorCredentials(validatorMoniker, kr)
 	if err != nil {
 		return EthereumSub{}, err
 	}
 
-	// Load CLI context and Tx builder
-	cliCtx := LoadTendermintCLIContext(cdc, validatorAddress, validatorName, rpcURL, chainID)
-	txBldr := authtypes.NewTxBuilderFromCLI(nil).
-		WithTxEncoder(utils.GetTxEncoder(cdc)).
-		WithChainID(chainID)
+	// Load CLI context
+	cliCtx := sdkContext.NewCLIContext().
+		WithCodec(amino).
+		WithFromAddress(sdk.AccAddress(validatorAddress)).
+		WithFromName(validatorName).
+		WithNodeURI(rpcURL)
+	cliCtx.SkipConfirm = true
+
+	// Validate sender's account (will be required for tx building)
+	accGetter := auth.NewAccountRetriever(cdc, cliCtx)
+	if err := accGetter.EnsureExists(sdk.AccAddress(validatorAddress)); err != nil {
+		return EthereumSub{}, err
+	}
 
 	return EthereumSub{
-		Cdc:                     cdc,
+		HomePath:                homePath,
+		Cdc:                     contextualCdc,
+		Amino:                   contextualAminoCdc,
 		EthProvider:             ethProvider,
 		RegistryContractAddress: registryContractAddress,
 		ValidatorName:           validatorName,
+		Keybase:                 kr,
 		ValidatorAddress:        validatorAddress,
-		CliCtx:                  cliCtx,
-		TxBldr:                  txBldr,
+		Client:                  client,
 		PrivateKey:              privateKey,
 		Logger:                  logger,
+		CosmosChainID:           chainID,
 	}, nil
 }
 
 // LoadValidatorCredentials : loads validator's credentials (address, moniker, and passphrase)
-func LoadValidatorCredentials(validatorFrom string, kr keyring.Keyring) (sdk.ValAddress, string, error) {
-	// // 'os' or 'pass'
-	// kr, err := keyring.New("EthereumBridge", "os", )
-	// if err != nil {
-	// 	panic("cry")
-	// }
-
+func LoadValidatorCredentials(validatorFrom string, kr keys.Keyring) (sdk.ValAddress, string, error) {
 	// Get the validator's name and account address using their moniker
-	// validatorAccAddress, validatorName, err := sdkContext.GetFromFields(inBuf, validatorFrom, false)
 	validatorAccAddress, validatorName, err := sdkContext.GetFromFields(kr, validatorFrom, false)
 	if err != nil {
 		return sdk.ValAddress{}, "", err
@@ -90,50 +130,12 @@ func LoadValidatorCredentials(validatorFrom string, kr keyring.Keyring) (sdk.Val
 	validatorAddress := sdk.ValAddress(validatorAccAddress)
 
 	// Confirm that the key is valid
-	_, err = authtxb.MakeSignature(nil, validatorName, keys.DefaultKeyPass, authtxb.StdSignMsg{})
+	_, err = authtxb.MakeSignature(kr, validatorName, ckeys.DefaultKeyPass, authtxb.StdSignMsg{})
 	if err != nil {
 		return sdk.ValAddress{}, "", err
 	}
 
 	return validatorAddress, validatorName, nil
-}
-
-// LoadTendermintCLIContext : loads CLI context for tendermint txs
-func LoadTendermintCLIContext(appCodec *amino.Codec, validatorAddress sdk.ValAddress, validatorName string,
-	rpcURL string, chainID string) sdkContext.CLIContext {
-	// Create the new CLI context
-	cliCtx := sdkContext.NewCLIContext().
-		WithCodec(appCodec).
-		WithFromAddress(sdk.AccAddress(validatorAddress)).
-		WithFromName(validatorName)
-
-	if rpcURL != "" {
-		cliCtx = cliCtx.WithNodeURI(rpcURL)
-	}
-	cliCtx.SkipConfirm = true
-
-	// TODO:
-	// chain, err := config.Chains.Get(args[0])
-	// if err != nil {
-	// 	return err
-	// }
-	// addr, err := chain.GetAddress()
-	// if err != nil {
-	// 	return err
-	// }
-	// acc, err := auth.NewAccountRetriever(chain.Cdc, chain).GetAccount(addr)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// Confirm that the validator's address exists
-	// route := fmt.Sprintf("custom/%s/%s", authtypes.QuerierRoute, authtypes.QueryAccount)
-	// accountRetriever := authtypes.NewAccountRetriever(authtypes.Codec, QueryWithData(route, nil))
-	// err := accountRetriever.EnsureExists((sdk.AccAddress(validatorAddress)))
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	return cliCtx
 }
 
 // Start an Ethereum chain subscription
@@ -234,7 +236,26 @@ func (sub EthereumSub) handleLogLock(clientChainID *big.Int, contractAddress com
 	if err != nil {
 		return err
 	}
-	return txs.RelayLockToCosmos(sub.Cdc, sub.ValidatorName, &prophecyClaim, sub.CliCtx, sub.TxBldr)
+
+	// Packages the claim as a Tendermint message
+	msg := ethbridge.NewMsgCreateEthBridgeClaim(prophecyClaim)
+	err = msg.ValidateBasic()
+	if err != nil {
+		return err
+	}
+
+	// Send msg
+	txRes, err := sub.SendMsg(msg)
+	if err != nil {
+		return err
+	}
+
+	res, err := sub.Amino.MarshalJSON(txRes)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(res))
+	return nil
 }
 
 // Unpacks a handleLogNewProphecyClaim event, builds a new OracleClaim, and relays it to Ethereum
@@ -254,4 +275,115 @@ func (sub EthereumSub) handleLogNewProphecyClaim(contractAddress common.Address,
 	}
 	return txs.RelayOracleClaimToEthereum(sub.EthProvider, contractAddress, types.LogNewProphecyClaim,
 		oracleClaim, sub.PrivateKey)
+}
+
+// SendMsg wraps the msg in a stdtx, signs and sends it
+func (sub EthereumSub) SendMsg(datagram sdk.Msg) (sdk.TxResponse, error) {
+	return sub.SendMsgs([]sdk.Msg{datagram})
+}
+
+// SendMsgs wraps the msgs in a stdtx, signs and sends it
+func (sub EthereumSub) SendMsgs(datagrams []sdk.Msg) (res sdk.TxResponse, err error) {
+	var out []byte
+	if out, err = sub.BuildAndSignTx(datagrams); err != nil {
+		return res, err
+	}
+	return sub.BroadcastTxCommit(out)
+}
+
+// BuildAndSignTx takes messages and builds, signs and marshals a sdk.Tx to prepare it for broadcast
+func (sub EthereumSub) BuildAndSignTx(datagram []sdk.Msg) ([]byte, error) {
+	// Fetch account and sequence numbers for the account
+	acc, err := auth.NewAccountRetriever(sub.Cdc, sub).GetAccount(sdk.AccAddress(sub.ValidatorAddress))
+	if err != nil {
+		return nil, err
+	}
+
+	gasCoins, err := sdk.ParseDecCoins(gasPrices)
+	if err != nil {
+		return nil, err
+	}
+
+	defer UseSDKContext()()
+	txBldr := auth.NewTxBuilder(
+		auth.DefaultTxEncoder(sub.Amino.Codec), acc.GetAccountNumber(),
+		acc.GetSequence(), gas, gasAdjustment, false, sub.CosmosChainID,
+		"", sdk.NewCoins(), gasCoins,
+	)
+
+	return txBldr.WithKeybase(sub.Keybase).BuildAndSign(sub.ValidatorName, ckeys.DefaultKeyPass, datagram)
+}
+
+// BroadcastTxCommit takes the marshaled transaction bytes and broadcasts them
+func (sub EthereumSub) BroadcastTxCommit(txBytes []byte) (sdk.TxResponse, error) {
+	res, err := sdkContext.CLIContext{Client: sub.Client}.BroadcastTxCommit(txBytes)
+	return res, err
+}
+
+func (sub EthereumSub) QueryABCI(req abci.RequestQuery) (res abci.ResponseQuery, err error) {
+	opts := rpcclient.ABCIQueryOptions{
+		Height: req.GetHeight(),
+		Prove:  req.Prove,
+	}
+
+	result, err := sub.Client.ABCIQueryWithOptions(req.Path, req.Data, opts)
+	if err != nil {
+		// retry queries on EOF
+		if strings.Contains(err.Error(), "EOF") {
+			return sub.QueryABCI(req)
+		}
+		return res, err
+	}
+
+	if !result.Response.IsOK() {
+		return res, errors.New(result.Response.Log)
+	}
+
+	return result.Response, nil
+}
+
+// QueryWithData satisfies auth.NodeQuerier interface and used for fetching account details
+func (sub EthereumSub) QueryWithData(p string, d []byte) (byt []byte, i int64, err error) {
+	var res abci.ResponseQuery
+	if res, err = sub.QueryABCI(abci.RequestQuery{Path: p, Height: 0, Data: d}); err != nil {
+		return byt, i, err
+	}
+
+	return res.Value, res.Height, nil
+}
+
+func newRPCClient(addr string, timeout time.Duration) (*rpchttp.HTTP, error) {
+	httpClient, err := libclient.DefaultHTTPClient(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient.Timeout = timeout
+	rpcClient, err := rpchttp.NewWithClient(addr, "/websocket", httpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return rpcClient, nil
+}
+
+// TODO: We'll want this for Kava
+var sdkContextMutex sync.Mutex
+
+// UseSDKContext uses a custom Bech32 account prefix and returns a restore func
+func UseSDKContext() func() {
+	// Ensure we're the only one using the global context.
+	// sdkContextMutex.Lock()
+	// config := sdk.GetConfig()
+	// account := config.GetBech32AccountAddrPrefix()
+	// pubaccount := config.GetBech32AccountPubPrefix()
+
+	// // Mutate the config
+	// config.SetBech32PrefixForAccount(sdk.Bech32PrefixAccAddr, sdk.Bech32PrefixAccPub)
+
+	// // Return a function that resets and unlocks.
+	return func() {
+		// defer sdkContextMutex.Unlock()
+		// config.SetBech32PrefixForAccount(account, pubaccount)
+	}
 }

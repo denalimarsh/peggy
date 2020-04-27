@@ -71,7 +71,6 @@ var (
 	}
 )
 
-// TODO:
 // // MakeCodec generates the necessary codecs for Amino
 func MakeCodec() *codec.Codec {
 	var cdc = codec.New()
@@ -116,7 +115,6 @@ func NewEthereumBridgeApp(
 ) *EthereumBridgeApp {
 
 	// First define the top level codec that will be shared by the different modules
-	// TODO: cdc := codecstd.MakeCodec(ModuleBasics)
 	cdc := MakeCodec()
 	appCodec := codecstd.NewAppCodec(cdc)
 
@@ -192,19 +190,15 @@ func NewEthereumBridgeApp(
 		params.NewAppModule(app.paramsKeeper),
 	)
 
-	// TODO: mint.ModuleName,
 	app.mm.SetOrderBeginBlockers(distr.ModuleName, slashing.ModuleName, staking.ModuleName)
 	app.mm.SetOrderEndBlockers(staking.ModuleName)
 
 	// NOTE: The genutils module must occur after staking so that pools are
 	// properly initialized with tokens from genesis accounts.
-	// TODO:  mint.ModuleName,
 	app.mm.SetOrderInitGenesis(
 		auth.ModuleName, distr.ModuleName, staking.ModuleName, bank.ModuleName,
 		slashing.ModuleName, genutil.ModuleName, ethbridge.ModuleName,
 	)
-
-	// TODO: add simulator support
 
 	app.mm.RegisterRoutes(app.Router(), app.QueryRouter())
 
@@ -216,7 +210,7 @@ func NewEthereumBridgeApp(
 	app.SetInitChainer(app.InitChainer)
 	app.SetBeginBlocker(app.BeginBlocker)
 
-	// TODO: SET ANTE HANDLER INCLUDING IBCKEEPER
+	// TODO: Set ante handler for IBC keeper
 	// app.SetAnteHandler(
 	// 	ante.NewAnteHandler(
 	// 		app.accountKeeper, app.bankKeeper,
@@ -231,7 +225,7 @@ func NewEthereumBridgeApp(
 		}
 	}
 
-	// TODO: capabilityKeeper
+	// TODO: is capabilityKeeper required?
 	// ctx := app.BaseApp.NewContext(true, abci.Header{})
 	// app.capabilityKeeper.InitializeAndSeal(ctx)
 
