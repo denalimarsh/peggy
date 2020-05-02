@@ -21,6 +21,7 @@ require (
 	github.com/miguelmota/go-solidity-sha3 v0.1.0
 	github.com/onsi/ginkgo v1.9.0 // indirect
 	github.com/onsi/gomega v1.6.0 // indirect
+	github.com/otiai10/copy v1.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/spf13/cobra v1.0.0

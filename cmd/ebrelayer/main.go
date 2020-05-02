@@ -52,7 +52,6 @@ func init() {
 	config.SetBech32PrefixForConsensusNode(sdk.Bech32PrefixConsAddr, sdk.Bech32PrefixConsPub)
 	config.Seal()
 
-	// cdc = app.MakeCodec()
 	cdc = codecstd.MakeCodec(app.ModuleBasics)
 	appCodec = codecstd.NewAppCodec(cdc)
 
@@ -86,7 +85,6 @@ var rootCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-//	initRelayerCmd
 func initRelayerCmd() *cobra.Command {
 	//nolint:lll
 	initRelayerCmd := &cobra.Command{
@@ -100,7 +98,7 @@ func initRelayerCmd() *cobra.Command {
 	return initRelayerCmd
 }
 
-//	generateBindingsCmd : Generates ABIs and bindings for Bridge smart contracts which facilitate contract interaction
+//	generateBindingsCmd generates ABIs and bindings for Bridge smart contracts which facilitate contract interaction
 func generateBindingsCmd() *cobra.Command {
 	generateBindingsCmd := &cobra.Command{
 		Use:     "generate",

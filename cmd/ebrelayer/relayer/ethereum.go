@@ -94,8 +94,11 @@ func NewEthereumSub(homePath string, rpcURL string, cdc *codecstd.Codec, amino *
 	cliCtx := sdkContext.NewCLIContext().
 		WithCodec(amino).
 		WithFromAddress(sdk.AccAddress(validatorAddress)).
-		WithFromName(validatorName).
-		WithNodeURI(rpcURL)
+		WithFromName(validatorName)
+
+	if rpcURL != "" {
+		cliCtx = cliCtx.WithNodeURI(rpcURL)
+	}
 	cliCtx.SkipConfirm = true
 
 	// Validate sender's account (will be required for tx building)
@@ -367,21 +370,12 @@ func newRPCClient(addr string, timeout time.Duration) (*rpchttp.HTTP, error) {
 	return rpcClient, nil
 }
 
-// TODO: We'll want this for Kava
+// TODO: We'll want this for chains with prefixes other than 'cosmos'
 var sdkContextMutex sync.Mutex
 
 // UseSDKContext uses a custom Bech32 account prefix and returns a restore func
 func UseSDKContext() func() {
-	// Ensure we're the only one using the global context.
-	// sdkContextMutex.Lock()
-	// config := sdk.GetConfig()
-	// account := config.GetBech32AccountAddrPrefix()
-	// pubaccount := config.GetBech32AccountPubPrefix()
-
-	// // Mutate the config
-	// config.SetBech32PrefixForAccount(sdk.Bech32PrefixAccAddr, sdk.Bech32PrefixAccPub)
-
-	// // Return a function that resets and unlocks.
+	// Return a function that resets and unlocks.
 	return func() {
 		// defer sdkContextMutex.Unlock()
 		// config.SetBech32PrefixForAccount(account, pubaccount)
