@@ -59,6 +59,7 @@ type EthereumSub struct {
 	PrivateKey              *ecdsa.PrivateKey
 	Logger                  tmLog.Logger
 	CosmosChainID           string
+	CliCtx                  sdkContext.CLIContext
 }
 
 // NewEthereumSub initializes a new EthereumSub
@@ -120,6 +121,7 @@ func NewEthereumSub(homePath string, rpcURL string, cdc *codecstd.Codec, amino *
 		PrivateKey:              privateKey,
 		Logger:                  logger,
 		CosmosChainID:           chainID,
+		CliCtx:                  cliCtx,
 	}, nil
 }
 
@@ -297,7 +299,7 @@ func (sub EthereumSub) SendMsgs(datagrams []sdk.Msg) (res sdk.TxResponse, err er
 // BuildAndSignTx takes messages and builds, signs and marshals a sdk.Tx to prepare it for broadcast
 func (sub EthereumSub) BuildAndSignTx(datagram []sdk.Msg) ([]byte, error) {
 	// Fetch account and sequence numbers for the account
-	acc, err := auth.NewAccountRetriever(sub.Cdc, sub).GetAccount(sdk.AccAddress(sub.ValidatorAddress))
+	acc, err := auth.NewAccountRetriever(sub.Cdc, sub.CliCtx).GetAccount(sdk.AccAddress(sub.ValidatorAddress))
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +311,7 @@ func (sub EthereumSub) BuildAndSignTx(datagram []sdk.Msg) ([]byte, error) {
 
 	defer UseSDKContext()()
 	txBldr := auth.NewTxBuilder(
-		auth.DefaultTxEncoder(sub.Amino.Codec), acc.GetAccountNumber(),
+		auth.DefaultTxEncoder(sub.CliCtx.Codec), acc.GetAccountNumber(),
 		acc.GetSequence(), gas, gasAdjustment, false, sub.CosmosChainID,
 		"", sdk.NewCoins(), gasCoins,
 	)
@@ -319,7 +321,7 @@ func (sub EthereumSub) BuildAndSignTx(datagram []sdk.Msg) ([]byte, error) {
 
 // BroadcastTxCommit takes the marshaled transaction bytes and broadcasts them
 func (sub EthereumSub) BroadcastTxCommit(txBytes []byte) (sdk.TxResponse, error) {
-	res, err := sdkContext.CLIContext{Client: sub.Client}.BroadcastTxCommit(txBytes)
+	res, err := sub.CliCtx.BroadcastTxCommit(txBytes)
 	return res, err
 }
 
